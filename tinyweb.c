@@ -34,6 +34,7 @@ typedef struct {
     char filename[512];
     off_t offset;              /* for support Range */
     size_t end;
+    size_t length;
     char query[512];
     char host[512];
 } http_request;
@@ -118,8 +119,10 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n){
         }
         else if (rp->rio_cnt == 0)  /* EOF */
             return 0;
-        else
+        else {
             rp->rio_bufptr = rp->rio_buf; /* reset buffer ptr */
+	//printf("==>%s<==\n",rp->rio_buf);
+	}
     }
 
     /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
@@ -334,12 +337,19 @@ void log_access(int status, struct sockaddr_in *c_addr, http_request *req){
            ntohs(c_addr->sin_port), status, req->method, req->filename, req->query);
 }
 
-void client_error(int fd, int status, char *msg, char *longmsg){
+void client_error(int fd, int status, char *msg, char *headers, char *longmsg){
     char buf[MAXLINE];
     sprintf(buf, "HTTP/1.1 %d %s\r\n", status, msg);
-    sprintf(buf + strlen(buf),
-            "Content-length: %lu\r\n\r\n", strlen(longmsg));
-    sprintf(buf + strlen(buf), "%s", longmsg);
+    if(headers!=NULL) if(strlen(headers)>0) { sprintf(buf + strlen(buf), "%s", headers); }
+    if( status==204 ) {
+	sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");
+    } else {
+	if( (longmsg!=NULL) && (strlen(longmsg)>0) ){
+	    sprintf(buf + strlen(buf),
+                "Content-length: %lu\r\n\r\n", strlen(longmsg));
+	    sprintf(buf + strlen(buf), "%s", longmsg);
+	} else { sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");}
+    }
     writen(fd, buf, strlen(buf));
 }
 
@@ -398,7 +408,7 @@ echo "SERVER_SOFTWARE=${SERVER_SOFTWARE}"
 	unsetenv("SERVER_SOFTWARE");
 }
 
-void serve_static(int out_fd, int in_fd, http_request *req,
+void serve_static_get(int out_fd, int in_fd, http_request *req,
                   size_t total_size, time_t last_change_time) {
     char buf[256];
     if (req->offset > 0){
@@ -419,20 +429,63 @@ void serve_static(int out_fd, int in_fd, http_request *req,
     sprintf(buf + strlen(buf), "Cache-Control: no-cache\r\nExpires: 0\r\n");
     // sprintf(buf + strlen(buf), "Cache-Control: public, max-age=315360000\r\nExpires: Thu, 31 Dec 2037 23:55:55 GMT\r\n");
 
-    sprintf(buf + strlen(buf), "Content-length: %lu\r\n",
-            req->end - req->offset);
-    sprintf(buf + strlen(buf), "Content-type: %s\r\n\r\n",
+    sprintf(buf + strlen(buf), "Content-type: %s\r\n",
             get_mime_type(req->filename));
 
-    writen(out_fd, buf, strlen(buf));
-    off_t offset = req->offset; /* copy */
-    while(offset < req->end){
-        if(sendfile(out_fd, in_fd, &offset, req->end - req->offset) <= 0) {
-            break;
-        }
-        printf("offset: %d \n\n", (int)offset);
-        close(out_fd);
-        break;
+    if( strcmp(req->method,"HEAD") ) {
+	sprintf(buf + strlen(buf), "Content-length: %lu\r\n\r\n",
+            req->end - req->offset);
+
+	writen(out_fd, buf, strlen(buf));
+	off_t offset = req->offset; /* copy */
+	while(offset < req->end){
+		if(sendfile(out_fd, in_fd, &offset, req->end - req->offset) <= 0) {
+		break;
+		}
+		printf("offset: %d \n\n", (int)offset);
+		close(out_fd);
+		break;
+	}
+    } else {
+	    sprintf(buf + strlen(buf), "\r\n" ) ;
+	    writen(out_fd, buf, strlen(buf));
+    }
+}
+
+void serve_static_put(int out_fd, int in_fd, http_request *req,
+                  size_t total_size, time_t last_change_time) {
+    char buf[512],n;
+    int put_fd ;
+    if( (put_fd = open(req->filename, O_CREAT|O_WRONLY|O_TRUNC, S_IRUSR|S_IWUSR ))==-1 ) {
+	client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
+    } else {
+	//while( (n=read(out_fd,buf,sizeof(buf)))>0 ) {
+	while( (n=read(out_fd,buf,1))>0 ) { write(put_fd,buf,n); }
+	close(put_fd);
+	client_error(out_fd, 200, "OK", NULL, "File created");
+    }
+}
+
+void serve_static(int out_fd, int in_fd, http_request *req,
+                  size_t total_size, time_t last_change_time) {
+    if( !strcmp(req->method,"HEAD") || !strcmp(req->method,"GET") || !strcmp(req->method,"POST") ) {
+	serve_static_get(out_fd, in_fd, req, total_size, last_change_time) ;
+    } else if( !strcmp(req->method,"DELETE") ) {
+	close( in_fd ) ;
+	if( remove( req->filename )==0 ) {
+	    printf("File %s removed !\n",req->filename);
+	    client_error(out_fd, 204, "No content", NULL, NULL);
+	} else {
+	    client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to remove file");
+	}
+    } else if( !strcmp(req->method,"OPTIONS") ) {
+	client_error(out_fd, 200, "OK", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", NULL);
+    } else if( !strcmp(req->method,"PUT") ) {
+	serve_static_put(out_fd, in_fd, req, total_size, last_change_time) ;
+    } else if( !strcmp(req->method,"TRACE") ) {
+	client_error(out_fd, 405, "Method not allowed", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", "Method not allowed");
+    } else {
+	client_error(out_fd, 405, "Method not allowed", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", "Method not allowed");
     }
 }
 
@@ -467,7 +520,7 @@ void process(int fd, struct sockaddr_in *clientaddr){
     if(ffd <= 0){
         status = 404;
         char *msg = "File not found";
-        client_error(fd, status, "Not found", msg);
+        client_error(fd, status, "Not found", NULL, msg);
     } else {
         fstat(ffd, &sbuf);
         if(S_ISREG(sbuf.st_mode)){
@@ -496,7 +549,7 @@ void process(int fd, struct sockaddr_in *clientaddr){
         } else {
             status = 400;
             char *msg = "Unknow Error";
-            client_error(fd, status, "Error", msg);
+            client_error(fd, status, "Error", NULL, msg);
         }
         close(ffd);
     }
