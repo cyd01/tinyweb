@@ -1,0 +1,9 @@
+bin
+*.bak
+*.gz
+*.exe
+*.dll
+*.o
+*.a
+password.inc
+gad.html

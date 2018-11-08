@@ -1,0 +1,7 @@
+{
+    "useSideMenu": false,
+    "lineBreaks": "gfm",
+    "additionalFooterText": "Original address of this page is <a href='http://www.9bis.net/tinyweb'>http://www.9bis.net/tinyweb</a><br/>",
+    "anchorCharacter": "#",
+    "title": "Tinyweb, a tiny web server in C"
+}

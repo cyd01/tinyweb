@@ -1,0 +1,4 @@
+gcc -o tinyweb tinyweb.c -DNO_SENDFILE -DWIN32 -lwsock32
+convert -background none -density 1000 -resize 512x  webserver.svg webserver.png
+convert -background transparent webserver.png -define icon:auto-resize=16,32,48,64,256 webserver.ico
+rcedit.exe tinyweb.exe --set-icon webserver.ico --set-file-version "1.0" --set-product-version "1.0" --set-version-string "Comments" "A tiny web server"

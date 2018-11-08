@@ -1,4 +1,3 @@
-
 # Tinyweb
 
 ## Origins
@@ -15,7 +14,7 @@ Here are the original features:
 * Basic MIME mapping
 * Very basic directory listing
 * Low resource usage
-* sendfile (Linux only) 
+* sendfile(2)
 * Support Accept-Ranges: bytes (for in browser MP4 playing)
 * concurrency by pre-fork
 
@@ -26,5 +25,6 @@ And the new features recently added:
 * Expect: 100-continue
 * DELETE, GET, HEAD, POST and PUT methods
 * Basic Auth for PUT and DELETE method
+* Light virtual host feature
 * Very light dynamic script integration (scripts are *.sh)
 * Docker image (https://hub.docker.com/r/cyd01/tinyweb/)
