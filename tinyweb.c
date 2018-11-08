@@ -9,11 +9,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/sendfile.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <ctype.h>
+
+#ifdef SENDFILE_H
+#include <sys/sendfile.h>
+#endif
+#ifndef TCP_CORK
+#define TCP_CORK 3
+#endif
 
 #define LISTENQ  1024  /* second argument to listen() */
 #define MAXLINE 1024   /* max length of a line */
@@ -37,6 +44,8 @@ typedef struct {
     size_t length;
     char query[512];
     char host[512];
+    size_t bodylen;
+    char body[MAXLINE];
 } http_request;
 
 typedef struct {
@@ -157,6 +166,30 @@ ssize_t rio_readlineb(rio_t *rp, void *usrbuf, size_t maxlen){
     }
     *bufp = 0;
     return n;
+}
+
+/* The  stristr()  function  finds the first occurrence of the substring needle in
+   the string haystack, ignores  the  case  of  both arguments.*/
+char* stristr( const char* str1, const char* str2 ) {
+    const char* p1 = str1 ;
+    const char* p2 = str2 ;
+    const char* r = *p2 == 0 ? str1 : 0 ;
+
+    while( *p1 != 0 && *p2 != 0 ) {
+        if( tolower( (unsigned char)*p1 ) == tolower( (unsigned char)*p2 ) ) {
+            if( r == 0 ) { r = p1 ; }
+            p2++ ;
+	} else {
+	    p2 = str2 ;
+            if( r != 0 ) { p1 = r + 1 ; }
+	    if( tolower( (unsigned char)*p1 ) == tolower( (unsigned char)*p2 ) ) {
+                r = p1 ;
+                p2++ ;
+	    } else { r = 0 ; }
+	}
+	p1++ ;
+    }
+    return *p2 == 0 ? (char*)r : 0 ;
 }
 
 void format_size(char* buf, struct stat *stat){
@@ -293,9 +326,12 @@ void parse_request(int fd, http_request *req){
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE];
     req->offset = 0;
     req->end = 0;              /* default */
-    req->query[0] = '\0' ;
-    req->host[0] = '\0' ;
-
+    req->query[0] = '\0';
+    req->host[0] = '\0';
+    req->length = 0;
+    req->bodylen=0;
+    req->body[0] = '\0';
+ 
     rio_readinitb(&rio, fd);
     rio_readlineb(&rio, buf, MAXLINE);
     sscanf(buf, "%s %s", method, uri); /* version is not cared */
@@ -303,13 +339,20 @@ void parse_request(int fd, http_request *req){
     /* read all */
     while(buf[0] != '\n' && buf[1] != '\n') { /* \n || \r\n */
         rio_readlineb(&rio, buf, MAXLINE);
-        if(buf[0] == 'R' && buf[1] == 'a' && buf[2] == 'n'){
+        //if(buf[0] == 'R' && buf[1] == 'a' && buf[2] == 'n'){
+	if( stristr(buf,"Range: ")==buf ) {
             sscanf(buf, "Range: bytes=%lu-%lu", &req->offset, &req->end);
             // Range: [start, end]
             if( req->end != 0) req->end ++;
-        } else if(buf[0] == 'H' && buf[1] == 'o' && buf[2] == 's' && buf[3] == 't' && buf[4] == ':') { // Host:
-	    sscanf(buf, "Host: %s", &req->host);
+	} else if( stristr(buf,"Host: ")==buf ) {
+	    sscanf(buf+6, "%s", &req->host);
+	} else if( stristr(buf, "Content-length: ")==buf ) {
+	    sscanf(buf+16, "%d", &(req->length) );
 	}
+    }
+    if( rio.rio_cnt>0 ) {
+	    req->bodylen=rio.rio_cnt;
+	    memcpy(req->body,rio.rio_bufptr,rio.rio_cnt);
     }
     char* filename = uri;
     if(uri[0] == '/'){
@@ -333,8 +376,8 @@ void parse_request(int fd, http_request *req){
 
 
 void log_access(int status, struct sockaddr_in *c_addr, http_request *req){
-    printf("%s:%d %d - %s %s ? %s\n", inet_ntoa(c_addr->sin_addr),
-           ntohs(c_addr->sin_port), status, req->method, req->filename, req->query);
+    printf("%s:%d %d - %s %s/%s(%d) ? %s\n", inet_ntoa(c_addr->sin_addr),
+           ntohs(c_addr->sin_port), status, req->method, req->host, req->filename, req->length, req->query);
 }
 
 void client_error(int fd, int status, char *msg, char *headers, char *longmsg){
@@ -439,9 +482,17 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 	writen(out_fd, buf, strlen(buf));
 	off_t offset = req->offset; /* copy */
 	while(offset < req->end){
+#ifdef SENDFILE_H
 		if(sendfile(out_fd, in_fd, &offset, req->end - req->offset) <= 0) {
-		break;
+			break;
 		}
+#else
+		int n;
+		while( (n=read(in_fd,buf,256))>0 ) {
+			write(out_fd,buf,n);
+			if(n!=256) break ;
+		}
+#endif
 		printf("offset: %d \n\n", (int)offset);
 		close(out_fd);
 		break;
@@ -452,17 +503,31 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
     }
 }
 
-void serve_static_put(int out_fd, int in_fd, http_request *req,
-                  size_t total_size, time_t last_change_time) {
-    char buf[512],n;
-    int put_fd ;
+void serve_static_put(int fd, http_request *req) { // curl -X PUT -H "Expect:" http://localhost:9996/1.txt --upload-file 1.txt
+
+    char buf[512];
+    int put_fd, n;
+    ssize_t size=0;
     if( (put_fd = open(req->filename, O_CREAT|O_WRONLY|O_TRUNC, S_IRUSR|S_IWUSR ))==-1 ) {
-	client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
+	client_error(fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
     } else {
-	//while( (n=read(out_fd,buf,sizeof(buf)))>0 ) {
-	while( (n=read(out_fd,buf,1))>0 ) { write(put_fd,buf,n); }
+	if( req->bodylen>0 ) { write(put_fd,req->body,req->bodylen); } /* Is there some data into buffer */
+	fd_set fds;
+	struct timeval timeout; timeout.tv_sec=2; timeout.tv_usec=0;
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+	if( select(fd+1, &fds, 0, 0, &timeout)==1 ) { /* there is data available into socket */
+	    while( (n=read(fd,buf,512))>0 ) {
+		write(put_fd,buf,n);
+		size+=n;
+		if( select(fd+1, &fds, 0, 0, &timeout)!=1 ) break;
+	    }
+	    printf("Writing %ld bytes into %s\n",size,req->filename);
+	    client_error(fd, 200, "OK", NULL, "File created");
+	} else {
+	    client_error(fd, 400, "Bad request", NULL, "No data found");
+	}
 	close(put_fd);
-	client_error(out_fd, 200, "OK", NULL, "File created");
     }
 }
 
@@ -481,7 +546,7 @@ void serve_static(int out_fd, int in_fd, http_request *req,
     } else if( !strcmp(req->method,"OPTIONS") ) {
 	client_error(out_fd, 200, "OK", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", NULL);
     } else if( !strcmp(req->method,"PUT") ) {
-	serve_static_put(out_fd, in_fd, req, total_size, last_change_time) ;
+	serve_static_put(out_fd, req) ;
     } else if( !strcmp(req->method,"TRACE") ) {
 	client_error(out_fd, 405, "Method not allowed", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", "Method not allowed");
     } else {
@@ -517,7 +582,9 @@ void process(int fd, struct sockaddr_in *clientaddr){
 
     struct stat sbuf;
     int status = 200, ffd = open(req.filename, O_RDONLY, 0);
-    if(ffd <= 0){
+    if( !strcmp(req.method,"PUT") ) {
+	serve_static_put(fd, &req) ;
+    } else if( ffd<=0 ){
         status = 404;
         char *msg = "File not found";
         client_error(fd, status, "Not found", NULL, msg);
