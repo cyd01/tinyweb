@@ -14,6 +14,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <limits.h>
 
 #ifdef SENDFILE_H
 #include <sys/sendfile.h>
@@ -345,9 +346,9 @@ void parse_request(int fd, http_request *req){
             // Range: [start, end]
             if( req->end != 0) req->end ++;
 	} else if( stristr(buf,"Host: ")==buf ) {
-	    sscanf(buf+6, "%s", &req->host);
+	    sscanf(buf+6, "%s", &(req->host[0]) );
 	} else if( stristr(buf, "Content-length: ")==buf ) {
-	    sscanf(buf+16, "%d", &(req->length) );
+	    sscanf(buf+16, "%lu", &req->length );
 	}
     }
     if( rio.rio_cnt>0 ) {
@@ -376,7 +377,7 @@ void parse_request(int fd, http_request *req){
 
 
 void log_access(int status, struct sockaddr_in *c_addr, http_request *req){
-    printf("%s:%d %d - %s %s/%s(%d) ? %s\n", inet_ntoa(c_addr->sin_addr),
+    printf("%s:%d %d - %s %s/%s(%lu) ? %s\n", inet_ntoa(c_addr->sin_addr),
            ntohs(c_addr->sin_port), status, req->method, req->host, req->filename, req->length, req->query);
 }
 
