@@ -23,7 +23,7 @@ And the new features recentrly added:
 * 302 redirect for directory
 * DELETE, GET, HEAD and PUT methods
 * Very light dynamic script integration (scripts are *.sh)
-* Dockerfile
+* Docker image (https://hub.docker.com/r/cyd01/tinyweb/)
 
 ## How to compile
 
