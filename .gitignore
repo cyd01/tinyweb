@@ -1,7 +1,8 @@
+bin
 *.bak
 *.gz
 *.exe
 *.dll
 *.o
 *.a
-index.html
+

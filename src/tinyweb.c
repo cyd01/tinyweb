@@ -1,19 +1,20 @@
-#include <arpa/inet.h>          /* inet_ntoa */
 #include <signal.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <ctype.h>
+
+#include <arpa/inet.h>          /* inet_ntoa */
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
 
 #ifdef SENDFILE_H
 #include <sys/sendfile.h>
@@ -229,7 +230,7 @@ void handle_directory_request(int out_fd, int dir_fd, char *filename){
             "td {padding: 1.5px 6px;}",
             "</style></head><body><table>\n");
     writen(out_fd, buf, strlen(buf));
-    DIR *d = fdopendir(dir_fd);
+    DIR *d = (DIR*)fdopendir(dir_fd);
     struct dirent *dp;
     int ffd;
     while ((dp = readdir(d)) != NULL){
@@ -618,8 +619,8 @@ void process(int fd, struct sockaddr_in *clientaddr){
             char *msg = "Unknow Error";
             client_error(fd, status, "Error", NULL, msg);
         }
-        close(ffd);
     }
+    close(ffd);
     log_access(status, clientaddr, &req);
 }
 int server_main(char *path, int default_port) {
@@ -639,6 +640,7 @@ int server_main(char *path, int default_port) {
 		perror("ERROR");
 		exit(listenfd);
 	}
+#ifndef WIN32
 	// Ignore SIGPIPE signal, so if browser cancels the request, it
 	// won't kill the whole process.
 	signal(SIGPIPE, SIG_IGN);
@@ -658,7 +660,7 @@ int server_main(char *path, int default_port) {
 			perror("fork");
 		}
 	}
-
+#endif
 	while(1){
 		connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
 		process(connfd, &clientaddr);
@@ -705,7 +707,8 @@ int main(int argc, char** argv){
 
 gcc -o tinyweb tinyweb.c
 
+gcc -o tinyweb tinyweb.c -DSENDFILE_H
+
 echo '<html><head><title>It works!</title></head><body>It works!</body></html>' > index.html
 
 */
-
