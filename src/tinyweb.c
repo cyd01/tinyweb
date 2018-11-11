@@ -684,7 +684,7 @@ int main(int argc, char** argv){
         exit(1);
     }
     if(argc == 2) {
-	if( !strcmp(argv[1],"-h") ) { printf("Usage %s [[directory] port]\n",argv[0]); exit(0); }
+	if( !strcmp(argv[1],"-h") ) { printf("Usage: %s [-h] [[directory] port]\n",argv[0]); exit(0); }
         if(argv[1][0] >= '0' && argv[1][0] <= '9') {
             default_port = atoi(argv[1]);
         } else {

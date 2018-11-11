@@ -3,7 +3,9 @@
 
 ## Origins
 
-Tinyweb came from [https://github.com/shenfeng/tiny-web-server](https://github.com/shenfeng/tiny-web-server "tinyweb server") repository.
+Tinyweb came from [https://github.com/shenfeng/tiny-web-server](https://github.com/shenfeng/tiny-web-server "original tinyweb server") repository.
+
+And the current repository is: [https://github.com/cyd01/tinyweb](https://github.com/cyd01/tinyweb "The new tinyweb server")
 
 ## Contents
 
@@ -25,17 +27,3 @@ And the new features recently added:
 * DELETE, GET, HEAD and PUT methods
 * Very light dynamic script integration (scripts are *.sh)
 * Docker image (https://hub.docker.com/r/cyd01/tinyweb/)
-
-## How to compile
-
-### Cygwin
-
-```bash
-gcc -o tinyweb tinyweb.c
-```
-
-### Linux
-
-```bash
-gcc -o tinyweb tinyweb.c -DSENDFILE_H
-```
