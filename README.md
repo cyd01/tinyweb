@@ -17,7 +17,7 @@ Here are the original features:
 * Support Accept-Ranges: bytes (for in browser MP4 playing)
 * concurrency by pre-fork
 
-And the new features recentrly added:
+And the new features recently added:
 
 * Default index file
 * 302 redirect for directory
