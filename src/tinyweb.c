@@ -350,6 +350,8 @@ void parse_request(int fd, http_request *req){
 	    sscanf(buf+6, "%s", &(req->host[0]) );
 	} else if( stristr(buf, "Content-length: ")==buf ) {
 	    sscanf(buf+16, "%lu", &req->length );
+	} else if( stristr(buf, "Expect: 100-continue")==buf ) {
+	  writen(fd, "HTTP/1.1 100 Continue\r\n", 23);
 	}
     }
     if( rio.rio_cnt>0 ) {

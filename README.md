@@ -21,6 +21,7 @@ And the new features recentrly added:
 
 * Default index file
 * 302 redirect for directory
+* Expect: 100-continue
 * DELETE, GET, HEAD and PUT methods
 * Very light dynamic script integration (scripts are *.sh)
 * Docker image (https://hub.docker.com/r/cyd01/tinyweb/)
