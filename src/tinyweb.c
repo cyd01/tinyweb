@@ -40,12 +40,14 @@ typedef struct sockaddr SA;
 
 typedef struct {
     char method[10];
+    char uri[512];
     char filename[512];
     off_t offset;              /* for support Range */
     size_t end;
     size_t length;
     char query[512];
-    char host[512];
+    char type[50];
+    char host[50];
     size_t bodylen;
     char body[MAXLINE];
 } http_request;
@@ -329,10 +331,13 @@ void parse_request(int fd, http_request *req){
     req->offset = 0;
     req->end = 0;              /* default */
     req->query[0] = '\0';
+    req->uri[0] = '\0';
     req->host[0] = '\0';
+    req->type[0] = '\0';
     req->length = 0;
     req->bodylen=0;
     req->body[0] = '\0';
+    
  
     rio_readinitb(&rio, fd);
     rio_readlineb(&rio, buf, MAXLINE);
@@ -350,6 +355,8 @@ void parse_request(int fd, http_request *req){
 	    sscanf(buf+6, "%s", &(req->host[0]) );
 	} else if( stristr(buf, "Content-length: ")==buf ) {
 	    sscanf(buf+16, "%lu", &req->length );
+	} else if( stristr(buf, "Content-type: ")==buf ) {
+	    sscanf(buf+14, "%s", &(req->type[0]) );
 	} else if( stristr(buf, "Expect: 100-continue")==buf ) {
 	  writen(fd, "HTTP/1.1 100 Continue\r\n", 23);
 	}
@@ -358,6 +365,10 @@ void parse_request(int fd, http_request *req){
 	    req->bodylen=rio.rio_cnt;
 	    memcpy(req->body,rio.rio_bufptr,rio.rio_cnt);
     }
+    if( uri[0]!='/' ) { uri[0]='/'; url_decode(uri, (req->uri)+1, MAXLINE); } 
+    else { url_decode(uri, req->uri, MAXLINE); }
+    int i;
+    for (i = 0; i < strlen(req->uri); i++) { if( req->uri[i]=='?' ) { req->uri[i]='\0'; break; } }
     char* filename = uri;
     if(uri[0] == '/'){
         filename = uri + 1;
@@ -365,8 +376,7 @@ void parse_request(int fd, http_request *req){
         if (length == 0){
             filename = ".";
         } else {
-	    int i;
-            for (i = 0; i < length; ++ i) {
+	    for (i = 0; i < length; ++ i) {
                 if (filename[i] == '?') {
 		    url_decode(filename+i+1 , req->query, MAXLINE);
                     filename[i] = '\0';
@@ -413,9 +423,15 @@ echo "DOCUMENT_ROOT=${DOCUMENT_ROOT}"
 echo "HTTP_HOST=${HTTP_HOST}"
 echo "SCRIPT_FILENAME=${SCRIPT_FILENAME}"
 echo "SERVER_SOFTWARE=${SERVER_SOFTWARE}"
+echo "SCRIPT_NAME=${SCRIPT_NAME}"
+echo "CONTENT_LENGTH=${CONTENT_LENGTH}"
+echo "CONTENT_TYPE=${CONTENT_TYPE}"
 */
 	char cmd[1024];
 	char cwd[PATH_MAX];
+	char buf[512];
+	FILE *fp ;
+	
 	getcwd(cwd, sizeof(cwd));
 	
 	if( strlen(req->query)>0 ) { setenv("QUERY_STRING", req->query, 1); }
@@ -427,12 +443,29 @@ echo "SERVER_SOFTWARE=${SERVER_SOFTWARE}"
 	sprintf(cmd, "%s/%s", cwd, req->filename );
 	setenv("SCRIPT_FILENAME", cmd, 1);
 	setenv("SERVER_SOFTWARE", server_software, 1);
+	setenv("CONTENT_TYPE", req->type, 1);
+	sprintf(buf,"%ld",req->length);
+	setenv("CONTENT_LENGTH", buf, 1);
+	setenv("SCRIPT_NAME", req->uri, 1);
 	
-	sprintf(cmd, "\"%s/%s\" 2>&1", cwd, req->filename);
+	if( !strcmp(req->method,"POST") && (req->bodylen>0) ) {
+		char * tmpfilename=tmpnam(NULL);
+		if( tmpfilename!=NULL ) {
+			fp = fopen(tmpfilename,"w") ;
+			if( fp!=NULL ) {
+				fwrite( req->body, req->bodylen, 1, fp );
+				fclose( fp );
+				sprintf(cmd, "cat %s | \"%s/%s\" 2>&1", tmpfilename, cwd, req->filename) ;
+				unlink(tmpfilename);
+			} else { strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nUnable to open temporary filename.") ; writen(out_fd, buf, strlen(buf)) ; return ; }
+		} else { strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nUnable to get temporary filename.") ; writen(out_fd, buf, strlen(buf)) ; return ; }
+		
+	} else {
+		sprintf(cmd, "\"%s/%s\" 2>&1", cwd, req->filename) ;
+	}
 	printf("running command /bin/sh -c %s\n",cmd);
 	
-	FILE *fp = popen(cmd,"r");
-	char buf[512];
+	fp = popen(cmd,"r");
 	int nb_read;
 	if( fp!=NULL ) {
 		strcpy(buf,"HTTP/1.1 200 OK\r\n"); writen(out_fd, buf, strlen(buf));
@@ -453,6 +486,9 @@ echo "SERVER_SOFTWARE=${SERVER_SOFTWARE}"
 	unsetenv("REQUEST_URI");
 	unsetenv("SCRIPT_FILENAME");
 	unsetenv("SERVER_SOFTWARE");
+	unsetenv("CONTENT_TYPE");
+	unsetenv("CONTENT_LENGTH");
+	unsetenv("SCRIPT_NAME");
 }
 
 void serve_static_get(int out_fd, int in_fd, http_request *req,
