@@ -2,7 +2,8 @@
 
 Tinyweb prebuilds are available for those platforms:
 
-* [Windows (Win32)](../bin/tinyweb_win32.tar.gz "Win32")
+* [Windows (Cygwin)](../bin/tinyweb_win32.tar.gz "Cygwin")
+* [Windows (MinGW)](../bin/tinyweb_mingw.exe.gz "MinGW Win32")
 * [CentOS](../bin/tinyweb_centos.gz "CentOS")
 * [Red hat](../bin/tinyweb_redhat.gz "RedHat")
 * [Ubuntu](../bin/tinyweb_ubuntu.gz "Ubuntu")

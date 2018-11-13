@@ -12,10 +12,16 @@
 #include <ctype.h>
 #include <limits.h>
 
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define random rand
+#else
 #include <arpa/inet.h>          /* inet_ntoa */
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
+#endif
 
 #ifdef SENDFILE_H
 #include <sys/sendfile.h>
@@ -100,7 +106,11 @@ ssize_t writen(int fd, void *usrbuf, size_t n){
     char *bufp = usrbuf;
 
     while (nleft > 0){
+#ifdef WIN32
+	if ((nwritten = send(fd, bufp, nleft, 0)) <= 0){
+#else
         if ((nwritten = write(fd, bufp, nleft)) <= 0){
+#endif
             if (errno == EINTR)  /* interrupted by sig handler return */
                 nwritten = 0;    /* and call write() again */
             else
@@ -125,10 +135,13 @@ ssize_t writen(int fd, void *usrbuf, size_t n){
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n){
     int cnt;
     while (rp->rio_cnt <= 0){  /* refill if buf is empty */
-
-        rp->rio_cnt = read(rp->rio_fd, rp->rio_buf,
-                           sizeof(rp->rio_buf));
-        if (rp->rio_cnt < 0){
+#ifdef WIN32
+	rp->rio_cnt = recv(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf), 0);
+#else
+        rp->rio_cnt = read(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf));
+#endif	    
+        if (rp->rio_cnt < 0) {
+	    //if (errno == EBADF ) printf("Bad file descriptor !\n");
             if (errno != EINTR) /* interrupted by sig handler return */
                 return -1;
         }
@@ -136,7 +149,7 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n){
             return 0;
         else {
             rp->rio_bufptr = rp->rio_buf; /* reset buffer ptr */
-	//printf("==>%s<==\n",rp->rio_buf);
+		//printf("==>%s<==\n",rp->rio_buf);
 	}
     }
 
@@ -215,6 +228,29 @@ void format_size(char* buf, struct stat *stat){
     }
 }
 
+#ifdef WIN32
+#include <windows.h>
+#include <tchar.h>
+#include <stdio.h>
+#define BUFSIZE MAX_PATH
+DWORD GetFinalPathNameByHandleA(HANDLE hFile,LPSTR  lpszFilePath,DWORD  cchFilePath,DWORD  dwFlags);
+int getfilename(HANDLE hFile, char* filename, int size) {
+	return GetFinalPathNameByHandleA(hFile,filename,size,0) ;
+}
+DIR *fdopendir(int fd) {
+	char filename[512];
+	getfilename( (void*)_get_osfhandle(fd),filename,512);
+	return opendir(filename);
+}
+int openat(int fd, const char *pathname, int flags) {
+	char filename[512];
+	getfilename( (void*)_get_osfhandle(fd),filename,512);
+	if( (pathname[0]!='/') && (filename[strlen(filename)-1]!='/') ) { strcat(filename,"/"); }
+	strcat( filename, pathname ) ;
+	return open(filename,flags);
+}
+#endif
+
 void handle_directory_redirect(int out_fd, char *filename, char *redirect) {
 	char buf[MAXLINE];
 	sprintf(buf, "HTTP/1.1 302 Found\r\nLocation: ");
@@ -286,6 +322,7 @@ int open_listenfd(int port){
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         return -1;
 
+#ifndef WIN32
     /* Eliminates "Address already in use" error from bind. */
     if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR,
                    (const void *)&optval , sizeof(int)) < 0)
@@ -296,6 +333,7 @@ int open_listenfd(int port){
     if (setsockopt(listenfd, 6, TCP_CORK,
                    (const void *)&optval , sizeof(int)) < 0)
         return -1;
+#endif
 
     /* Listenfd will be an endpoint for all requests to port
        on any IP address for this host */
@@ -303,6 +341,7 @@ int open_listenfd(int port){
     serveraddr.sin_family = AF_INET;
     serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
     serveraddr.sin_port = htons((unsigned short)port);
+    
     if (bind(listenfd, (SA *)&serveraddr, sizeof(serveraddr)) < 0)
         return -1;
 
@@ -433,7 +472,11 @@ int write_file(int fd, http_request *req, char * filename) {
 	FD_ZERO(&fds);
 	FD_SET(fd, &fds);
 	if( select(fd+1, &fds, 0, 0, &timeout)==1 ) { /* there is data available into socket */
+#ifdef WIN32
+	    while( (n=recv(fd,buf,512,0))>0 ) {
+#else
 	    while( (n=read(fd,buf,512))>0 ) {
+#endif
 		write(put_fd,buf,n);
 		size+=n;
 		if( select(fd+1, &fds, 0, 0, &timeout)!=1 ) break;
@@ -495,11 +538,24 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 		if( tmpfilename!=NULL ) {
 			int r = write_file(out_fd, req, tmpfilename);
 			switch(r) {
-				case 500: client_error(out_fd, 500, "Internal server error", NULL, "Unable to create temporary file."); return ;break;
+				case 500: client_error(out_fd, 500, "Internal server error", NULL, "Unable to create temporary file.");
+#ifdef WIN32
+				closesocket(out_fd);
+#else
+				close(out_fd); 
+#endif
+				return ; break;
 			}
 			sprintf(cmd, "cat %s | \"%s/%s\" 2>&1", tmpfilename, cwd, req->filename) ;
-		} else { client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); return ; }
-		
+		} else { 
+			client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); 
+#ifdef WIN32
+			closesocket(out_fd);
+#else
+			close(out_fd);
+#endif
+			return ; 
+		}
 	} else {
 		sprintf(cmd, "\"%s/%s\" 2>&1", cwd, req->filename) ;
 	}
@@ -530,6 +586,11 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 	unsetenv("CONTENT_TYPE");
 	unsetenv("CONTENT_LENGTH");
 	unsetenv("SCRIPT_NAME");
+#ifdef WIN32
+	closesocket(out_fd);
+#else
+	close(out_fd);
+#endif
 }
 
 void serve_static_get(int out_fd, int in_fd, http_request *req,
@@ -542,12 +603,12 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
     } else {
         sprintf(buf, "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\n");
     }
-    char date[35];
-    strftime(date, 35, "%a, %d %b %Y %H:%M:%S %Z", localtime(&(last_change_time)));
+    char date[100];
+    strftime(date, 100, "%a, %d %b %Y %H:%M:%S %Z", localtime(&(last_change_time)));
     sprintf(buf + strlen(buf), "Last-Modified: %s\r\n", date);
 
     time_t current_time = time(0) ;
-    strftime(date, 35, "%a, %d %b %Y %H:%M:%S %Z", localtime(&(current_time)));
+    strftime(date, 100, "%a, %d %b %Y %H:%M:%S %Z", localtime(&(current_time)));
     sprintf(buf + strlen(buf), "Date: %s\r\n", date);
     
     sprintf(buf + strlen(buf), "Cache-Control: no-cache\r\nExpires: 0\r\n");
@@ -569,29 +630,50 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 		}
 #else
 		int n;
+
 		while( (n=read(in_fd,buf,256))>0 ) {
+#ifdef WIN32
+			send(out_fd,buf,n,0);
+#else
 			write(out_fd,buf,n);
+#endif
 			if(n!=256) break ;
 		}
 #endif
 		printf("offset: %d \n\n", (int)offset);
+		
+#ifdef WIN32
+		closesocket(out_fd);
+#else
 		close(out_fd);
+#endif
 		break;
 	}
     } else {
 	    sprintf(buf + strlen(buf), "\r\n" ) ;
 	    writen(out_fd, buf, strlen(buf));
+#ifdef WIN32
+		closesocket(out_fd);
+#else
+	    close(out_fd);
+#endif
     }
 }
 
-void serve_static_put(int fd, http_request *req) { // curl -X PUT -H "Expect:" http://localhost:9996/1.txt --upload-file 1.txt
-	int r=write_file( fd, req, req->filename ) ;
+void serve_static_put(int out_fd, http_request *req) { // curl -X PUT -H "Expect:" http://localhost:9996/1.txt --upload-file 1.txt
+	int r = write_file( out_fd, req, req->filename ) ;
 	switch( r ) {
-		case 200: client_error(fd, 200, "OK", NULL, "File created"); break;
-		case 400: client_error(fd, 400, "Bad request", NULL, "No data found");break;
+		case 200: client_error(out_fd, 200, "OK", NULL, "File created"); break;
+		case 400: client_error(out_fd, 400, "Bad request", NULL, "No data found");break;
 		case 500: 
-		default: client_error(fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
+		default: client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
+	
 	}
+#ifdef WIN32
+	closesocket(out_fd);
+#else
+	close(out_fd);
+#endif
 }
 
 void serve_static(int out_fd, int in_fd, http_request *req,
@@ -641,13 +723,14 @@ void process(int fd, struct sockaddr_in *clientaddr){
     printf("accept request, fd is %d, pid is %d\n", fd, getpid());
     http_request req;
     parse_request(fd, &req);
+	
     printf("request filename: %s\n", req.filename);
 
     struct stat sbuf;
     int status = 200, ffd = open(req.filename, O_RDONLY, 0);
     if( !strcmp(req.method,"PUT") ) {
 	serve_static_put(fd, &req) ;
-    } else if( ffd<=0 ){
+    } else if( ffd<=0 ) {
         status = 404;
         char *msg = "File not found";
         client_error(fd, status, "Not found", NULL, msg);
@@ -685,6 +768,8 @@ void process(int fd, struct sockaddr_in *clientaddr){
     close(ffd);
     log_access(status, clientaddr, &req);
 }
+
+struct adresseIP { unsigned char i1; unsigned char i2; unsigned char i3; unsigned char i4; } ;
 int server_main(char *path, int default_port) {
 	int listenfd,
 	    connfd;
@@ -697,13 +782,13 @@ int server_main(char *path, int default_port) {
 	}
 	listenfd = open_listenfd(default_port);
 	if (listenfd > 0) {
+		char buf[256];
+		path = getcwd(buf, 256);
 		printf("listen on port %d, scan directory %s, fd is %d\n", default_port, path, listenfd);
 	} else {
 		perror("ERROR");
 		exit(listenfd);
 	}
-	
-	if( getenv("TINYWEB_NBPROCESS")!=NULL ) { nb_forks=atoi(getenv("TINYWEB_NBPROCESS")); if(nb_forks<0) nb_forks=0;  }
 	
 #ifndef WIN32
 	// Ignore SIGPIPE signal, so if browser cancels the request, it
@@ -728,8 +813,14 @@ int server_main(char *path, int default_port) {
 #endif
 	while(1){
 		connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
+		struct adresseIP * adIP = (struct adresseIP*) &( clientaddr.sin_addr.s_addr ) ;
+		printf("accept connexion from %d.%d.%d.%d:%d\n",adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
 		process(connfd, &clientaddr);
+#ifdef WIN32
+		closesocket(connfd);
+#else		
 		close(connfd);
+#endif
 	}
 	return 0 ;
 }
@@ -738,10 +829,10 @@ int main(int argc, char** argv){
     int default_port = 9999;
     char buf[256];
     char *path = getcwd(buf, 256);
-    
+
     if( getenv("TINYWEB_PORT")!=NULL ) { default_port = atoi(getenv("TINYWEB_PORT")) ; if( (default_port<1)||(default_port>65535) ) {default_port = 9999;}  }
     if( getenv("TINYWEB_DIR")!=NULL ) { path = getenv("TINYWEB_DIR") ; }
-
+    if( getenv("TINYWEB_NBPROCESS")!=NULL ) { nb_forks=atoi(getenv("TINYWEB_NBPROCESS")); if(nb_forks<0) nb_forks=0;  }
     if( getenv("TMPDIR")!=NULL ) { strcpy(tmp_dir, getenv("TMPDIR")); }
     else if( getenv("TEMP")!=NULL ) { strcpy(tmp_dir, getenv("TEMP")); }
     else if( getenv("TMP")!=NULL ) { strcpy(tmp_dir, getenv("TMP")); }
@@ -750,6 +841,7 @@ int main(int argc, char** argv){
         perror(path);
         exit(1);
     }
+
     if(argc == 2) {
 	if( !strcmp(argv[1],"-h") ) { printf("Usage: %s [-h] [[directory] port]\n",argv[0]); exit(0); }
         if(argv[1][0] >= '0' && argv[1][0] <= '9') {
@@ -769,7 +861,12 @@ int main(int argc, char** argv){
             exit(1);
         }
     }
-
+#ifdef WIN32
+WSADATA wsaData;
+if( WSAStartup(MAKEWORD(2,2), &wsaData) ) {
+    printf("Unable to start winsock!\n");
+    return EXIT_FAILURE ; }
+#endif
     return server_main( path, default_port ) ;
 }
 
@@ -778,6 +875,8 @@ int main(int argc, char** argv){
 gcc -o tinyweb tinyweb.c
 
 gcc -o tinyweb tinyweb.c -DSENDFILE_H
+
+gcc -o tinyweb.exe tinyweb.c -DWIN32 -lwsock32 /c/windows/system32/kernel32.dll
 
 echo '<html><head><title>It works!</title></head><body>It works!</body></html>' > index.html
 
