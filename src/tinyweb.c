@@ -84,6 +84,8 @@ char *default_index_file = "index.html";
 
 char *server_software = "Tinyweb 1.0";
 
+char tmp_dir[256]="." ;
+
 int nb_forks = 10 ;
 
 void rio_readinitb(rio_t *rp, int fd){
@@ -358,7 +360,7 @@ void parse_request(int fd, http_request *req){
 	} else if( stristr(buf, "Content-type: ")==buf ) {
 	    sscanf(buf+14, "%s", &(req->type[0]) );
 	} else if( stristr(buf, "Expect: 100-continue")==buf ) {
-	  writen(fd, "HTTP/1.1 100 Continue\r\n", 23);
+	  writen(fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
 	}
     }
     if( rio.rio_cnt>0 ) {
@@ -390,7 +392,7 @@ void parse_request(int fd, http_request *req){
 
 
 void log_access(int status, struct sockaddr_in *c_addr, http_request *req){
-    printf("%s:%d %d - %s %s/%s(%lu) ? %s\n", inet_ntoa(c_addr->sin_addr),
+    printf("%s:%d %d - %s %s/%s (%lu) ? %s\n", inet_ntoa(c_addr->sin_addr),
            ntohs(c_addr->sin_port), status, req->method, req->host, req->filename, req->length, req->query);
 }
 
@@ -408,6 +410,44 @@ void client_error(int fd, int status, char *msg, char *headers, char *longmsg){
 	} else { sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");}
     }
     writen(fd, buf, strlen(buf));
+}
+
+char *psttemp=NULL;
+char * mmktemp(char *template) {
+	if(psttemp!=NULL) { free(psttemp); } psttemp=NULL;
+	psttemp=(char*)malloc(256);psttemp[0]='\0';
+	sprintf(psttemp,"%s/%s%ld",tmp_dir,template,random());
+	return psttemp;
+}
+
+int write_file(int fd, http_request *req, char * filename) {
+    char buf[512];
+    int put_fd, n;
+    ssize_t size=0;
+    if( (put_fd = open(filename, O_CREAT|O_WRONLY|O_TRUNC, S_IRUSR|S_IWUSR ))==-1 ) {
+	return 500;
+    } else {
+	if( req->bodylen>0 ) { write(put_fd,req->body,req->bodylen) ; } /* Is there some data into buffer */
+	fd_set fds;
+	struct timeval timeout; timeout.tv_sec=2; timeout.tv_usec=0;
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+	if( select(fd+1, &fds, 0, 0, &timeout)==1 ) { /* there is data available into socket */
+	    while( (n=read(fd,buf,512))>0 ) {
+		write(put_fd,buf,n);
+		size+=n;
+		if( select(fd+1, &fds, 0, 0, &timeout)!=1 ) break;
+	    }
+	    printf("Writing %ld bytes into %s\n",size,req->filename);
+	    close(put_fd);
+	    return 200;
+	} else {
+	    close(put_fd);
+	    return 400;
+	}
+	close(put_fd);
+    }
+    return 500;
 }
 
 void serve_dynamic(int out_fd, http_request *req ) {
@@ -444,21 +484,21 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 	setenv("SCRIPT_FILENAME", cmd, 1);
 	setenv("SERVER_SOFTWARE", server_software, 1);
 	setenv("CONTENT_TYPE", req->type, 1);
-	sprintf(buf,"%ld",req->length);
+	sprintf(buf,"%lu",req->length);
 	setenv("CONTENT_LENGTH", buf, 1);
 	setenv("SCRIPT_NAME", req->uri, 1);
-	
+
+	char * tmpfilename=NULL;
 	if( !strcmp(req->method,"POST") && (req->bodylen>0) ) {
-		char * tmpfilename=tmpnam(NULL);
+		//tmpfilename = tmpnam(NULL) ;
+		tmpfilename = mmktemp("tinyweb") ;
 		if( tmpfilename!=NULL ) {
-			fp = fopen(tmpfilename,"w") ;
-			if( fp!=NULL ) {
-				fwrite( req->body, req->bodylen, 1, fp );
-				fclose( fp );
-				sprintf(cmd, "cat %s | \"%s/%s\" 2>&1", tmpfilename, cwd, req->filename) ;
-				unlink(tmpfilename);
-			} else { strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nUnable to open temporary filename.") ; writen(out_fd, buf, strlen(buf)) ; return ; }
-		} else { strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nUnable to get temporary filename.") ; writen(out_fd, buf, strlen(buf)) ; return ; }
+			int r = write_file(out_fd, req, tmpfilename);
+			switch(r) {
+				case 500: client_error(out_fd, 500, "Internal server error", NULL, "Unable to create temporary file."); return ;break;
+			}
+			sprintf(cmd, "cat %s | \"%s/%s\" 2>&1", tmpfilename, cwd, req->filename) ;
+		} else { client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); return ; }
 		
 	} else {
 		sprintf(cmd, "\"%s/%s\" 2>&1", cwd, req->filename) ;
@@ -477,6 +517,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 		strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nInternal Server Error"); 
 		writen(out_fd, buf, strlen(buf));
 	}
+	if( tmpfilename!=NULL ) { unlink(tmpfilename) ;}
 	
 	pclose(fp);
 	unsetenv("QUERY_STRING");
@@ -544,31 +585,13 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 }
 
 void serve_static_put(int fd, http_request *req) { // curl -X PUT -H "Expect:" http://localhost:9996/1.txt --upload-file 1.txt
-
-    char buf[512];
-    int put_fd, n;
-    ssize_t size=0;
-    if( (put_fd = open(req->filename, O_CREAT|O_WRONLY|O_TRUNC, S_IRUSR|S_IWUSR ))==-1 ) {
-	client_error(fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
-    } else {
-	if( req->bodylen>0 ) { write(put_fd,req->body,req->bodylen); } /* Is there some data into buffer */
-	fd_set fds;
-	struct timeval timeout; timeout.tv_sec=2; timeout.tv_usec=0;
-	FD_ZERO(&fds);
-	FD_SET(fd, &fds);
-	if( select(fd+1, &fds, 0, 0, &timeout)==1 ) { /* there is data available into socket */
-	    while( (n=read(fd,buf,512))>0 ) {
-		write(put_fd,buf,n);
-		size+=n;
-		if( select(fd+1, &fds, 0, 0, &timeout)!=1 ) break;
-	    }
-	    printf("Writing %ld bytes into %s\n",size,req->filename);
-	    client_error(fd, 200, "OK", NULL, "File created");
-	} else {
-	    client_error(fd, 400, "Bad request", NULL, "No data found");
+	int r=write_file( fd, req, req->filename ) ;
+	switch( r ) {
+		case 200: client_error(fd, 200, "OK", NULL, "File created"); break;
+		case 400: client_error(fd, 400, "Bad request", NULL, "No data found");break;
+		case 500: 
+		default: client_error(fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
 	}
-	close(put_fd);
-    }
 }
 
 void serve_static(int out_fd, int in_fd, http_request *req,
@@ -679,6 +702,9 @@ int server_main(char *path, int default_port) {
 		perror("ERROR");
 		exit(listenfd);
 	}
+	
+	if( getenv("TINYWEB_NBPROCESS")!=NULL ) { nb_forks=atoi(getenv("TINYWEB_NBPROCESS")); if(nb_forks<0) nb_forks=0;  }
+	
 #ifndef WIN32
 	// Ignore SIGPIPE signal, so if browser cancels the request, it
 	// won't kill the whole process.
@@ -715,6 +741,11 @@ int main(int argc, char** argv){
     
     if( getenv("TINYWEB_PORT")!=NULL ) { default_port = atoi(getenv("TINYWEB_PORT")) ; if( (default_port<1)||(default_port>65535) ) {default_port = 9999;}  }
     if( getenv("TINYWEB_DIR")!=NULL ) { path = getenv("TINYWEB_DIR") ; }
+
+    if( getenv("TMPDIR")!=NULL ) { strcpy(tmp_dir, getenv("TMPDIR")); }
+    else if( getenv("TEMP")!=NULL ) { strcpy(tmp_dir, getenv("TEMP")); }
+    else if( getenv("TMP")!=NULL ) { strcpy(tmp_dir, getenv("TMP")); }
+    
     if(chdir(path) != 0) {
         perror(path);
         exit(1);
