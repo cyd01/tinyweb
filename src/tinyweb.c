@@ -23,10 +23,9 @@
 #include <sys/socket.h>
 #endif
 
-#ifndef NO_SENDFILE
+#ifdef SENDFILE_H
 #include <sys/sendfile.h>
 #endif
-
 #ifndef TCP_CORK
 #define TCP_CORK 3
 #endif
@@ -625,7 +624,7 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 	writen(out_fd, buf, strlen(buf));
 	off_t offset = req->offset; /* copy */
 	while(offset < req->end){
-#ifndef NO_SENDFILE
+#ifdef SENDFILE_H
 		if(sendfile(out_fd, in_fd, &offset, req->end - req->offset) <= 0) {
 			break;
 		}
@@ -872,14 +871,12 @@ if( WSAStartup(MAKEWORD(2,2), &wsaData) ) {
 }
 
 /*
-# Linux
+
 gcc -o tinyweb tinyweb.c
 
-# Cygwin
-gcc -o tinyweb tinyweb.c -DNO_SENDFILE
+gcc -o tinyweb tinyweb.c -DSENDFILE_H
 
-# MinGW
-gcc -o tinyweb.exe tinyweb.c -DNO_SENDFILE -DWIN32 -lwsock32 /c/windows/system32/kernel32.dll
+gcc -o tinyweb.exe tinyweb.c -DWIN32 -lwsock32 /c/windows/system32/kernel32.dll
 
 echo '<html><head><title>It works!</title></head><body>It works!</body></html>' > index.html
 
