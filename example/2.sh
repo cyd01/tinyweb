@@ -1,5 +1,4 @@
 #!/bin/bash
-echo -e "Content-type: text/html\n\n"
 
 # (internal) routine to store POST data
 function cgi_get_POST_vars()
@@ -98,6 +97,8 @@ function cgi_getvars()
 
 # register all GET and POST variables
 cgi_getvars BOTH ALL
+
+echo -e "Content-type: text/html\n\n"
 
 cat <<EOF
 <html>

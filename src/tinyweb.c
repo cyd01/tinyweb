@@ -95,6 +95,8 @@ char tmp_dir[256]="." ;
 
 int nb_forks = 10 ;
 
+char *dynamic_shell = "" ;
+
 void rio_readinitb(rio_t *rp, int fd){
     rp->rio_fd = fd;
     rp->rio_cnt = 0;
@@ -494,7 +496,8 @@ int write_file(int fd, http_request *req, char * filename) {
     return 500;
 }
 
-void serve_dynamic(int out_fd, http_request *req ) {
+#define BUF_SIZE 512
+int serve_dynamic(int out_fd, http_request *req ) {
 /*# Exemple de shell dynamic
 #!/bin/bash
 echo "Content-type: text/plain"
@@ -513,8 +516,9 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 */
 	char cmd[1024];
 	char cwd[PATH_MAX];
-	char buf[512];
+	char buf[BUF_SIZE];
 	FILE *fp ;
+	int ret = 200 ;
 	
 	getcwd(cwd, sizeof(cwd));
 	
@@ -545,9 +549,9 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 #else
 				close(out_fd); 
 #endif
-				return ; break;
+				return 500; break;
 			}
-			sprintf(cmd, "cat %s | \"%s/%s\" 2>&1", tmpfilename, cwd, req->filename) ;
+			sprintf(cmd, "cat %s |%s\"%s/%s\" 2>&1", tmpfilename, dynamic_shell, cwd, req->filename) ;
 		} else { 
 			client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); 
 #ifdef WIN32
@@ -555,28 +559,48 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 #else
 			close(out_fd);
 #endif
-			return ; 
+			return 500; 
 		}
 	} else {
-		sprintf(cmd, "\"%s/%s\" 2>&1", cwd, req->filename) ;
+		sprintf(cmd, "%s\"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
 	}
-	printf("running command /bin/sh -c %s\n",cmd);
-	
+#ifdef WIN32
+	printf("running command %s\n",cmd);
+#else
+	printf("running command [/bin/sh -c] %s\n",cmd);
+#endif
+
 	fp = popen(cmd,"r");
 	int nb_read;
 	if( fp!=NULL ) {
-		strcpy(buf,"HTTP/1.1 200 OK\r\n"); writen(out_fd, buf, strlen(buf));
-		while( (nb_read=fread(buf,1,512,fp))>0 )  {
-			writen(out_fd, buf, nb_read);
-			if( nb_read!=512 ) break;
+		if( !fgets(buf, BUF_SIZE, fp) ) {
+			strcpy(buf,"HTTP/1.1 500 Internal server error\r\n"); 
+			writen(out_fd, buf, strlen(buf));
+			ret = 500 ;
+		} else {
+			if( stristr(buf,"Status:")==buf ) {
+				writen(out_fd, "HTTP/1.1 ", 9);
+				int i=8;
+				while( buf[i]==' ' ) { i++; }
+				writen(out_fd, buf+i, strlen(buf+i));
+				ret = atoi(buf+i);
+			} else {
+				strcpy(buf,"HTTP/1.1 200 OK\r\n"); 
+			}
+			writen(out_fd, buf, strlen(buf));
+			while( (nb_read=fread(buf,1,BUF_SIZE,fp))>0 )  {
+				writen(out_fd, buf, nb_read);
+				if( nb_read!=BUF_SIZE ) break;
+			}
 		}
 	} else {
-		strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nInternal Server Error"); 
+		strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nInternal Server Error");
 		writen(out_fd, buf, strlen(buf));
+		ret = 500 ;
 	}
 	if( tmpfilename!=NULL ) { unlink(tmpfilename) ;}
 	
-	pclose(fp);
+	pclose(fp) ;
 	unsetenv("QUERY_STRING");
 	unsetenv("REQUEST_METHOD");
 	unsetenv("DOCUMENT_ROOT");
@@ -592,6 +616,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 #else
 	close(out_fd);
 #endif
+	return ret ;
 }
 
 void serve_static_get(int out_fd, int in_fd, http_request *req,
@@ -745,7 +770,7 @@ void process(int fd, struct sockaddr_in *clientaddr){
                 status = 206;
             }
             if( !strcmp(req.filename+strlen(req.filename)-3,".sh") ) {
-		serve_dynamic(fd, &req);
+		status = serve_dynamic(fd, &req);
 	    } else {
 		serve_static(fd, ffd, &req, sbuf.st_size, sbuf.st_ctime);
 	    }
@@ -826,6 +851,17 @@ int server_main(char *path, int default_port) {
 	return 0 ;
 }
 
+void usage( char *progname ) {
+	printf("Usage: %s [-h] [[directory] port]\n",progname);
+	printf("Configuration variables:\n");
+	printf("- TINYWEB_DIR: home directory [.]\n");
+	printf("- TINYWEB_PORT: listening port [9999]\n");
+#ifndef WIN32
+	printf("- TINYWEB_NBPROCESS: number of concurrent processes [10]\n");
+#endif
+	printf("- TINYWEB_CMD: external scripts command []\n");
+}
+
 int main(int argc, char** argv){
     int default_port = 9999;
     char buf[256];
@@ -834,6 +870,8 @@ int main(int argc, char** argv){
     if( getenv("TINYWEB_PORT")!=NULL ) { default_port = atoi(getenv("TINYWEB_PORT")) ; if( (default_port<1)||(default_port>65535) ) {default_port = 9999;}  }
     if( getenv("TINYWEB_DIR")!=NULL ) { path = getenv("TINYWEB_DIR") ; }
     if( getenv("TINYWEB_NBPROCESS")!=NULL ) { nb_forks=atoi(getenv("TINYWEB_NBPROCESS")); if(nb_forks<0) nb_forks=0;  }
+    if( getenv("TINYWEB_CMD")!=NULL ) { dynamic_shell=(char*)malloc(strlen(getenv("TINYWEB_CMD"))+1);strcpy(dynamic_shell,getenv("TINYWEB_CMD"));strcat(dynamic_shell," "); }
+	    
     if( getenv("TMPDIR")!=NULL ) { strcpy(tmp_dir, getenv("TMPDIR")); }
     else if( getenv("TEMP")!=NULL ) { strcpy(tmp_dir, getenv("TEMP")); }
     else if( getenv("TMP")!=NULL ) { strcpy(tmp_dir, getenv("TMP")); }
@@ -844,7 +882,7 @@ int main(int argc, char** argv){
     }
 
     if(argc == 2) {
-	if( !strcmp(argv[1],"-h") ) { printf("Usage: %s [-h] [[directory] port]\n",argv[0]); exit(0); }
+	if( !strcmp(argv[1],"-h") ) { usage(argv[0]); exit(0); }
         if(argv[1][0] >= '0' && argv[1][0] <= '9') {
             default_port = atoi(argv[1]);
         } else {

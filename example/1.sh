@@ -1,4 +1,11 @@
 #!/bin/bash
+
+echo "Status: 302 Redirect"
+echo "location: /2.sh"
+echo
+exit 0
+
+echo "Status: 200 OK"
 echo "Content-type: text/plain"
 echo
 echo "On est dans un shell: "
