@@ -402,7 +402,7 @@ void parse_request(int fd, http_request *req){
 	} else if( stristr(buf, "Content-length: ")==buf ) {
 	    sscanf(buf+16, "%lu", &req->length );
 	} else if( stristr(buf, "Authorization: ")==buf ) {
-	    sscanf(buf+15, "%s", &(req->auth[0]) );
+	    sscanf(buf+15, "%[a-zA-Z0-9=+/ ]", &(req->auth[0]) );
 	} else if( stristr(buf, "Content-type: ")==buf ) {
 	    sscanf(buf+14, "%s", &(req->type[0]) );
 	} else if( stristr(buf, "Expect: 100-continue")==buf ) {
