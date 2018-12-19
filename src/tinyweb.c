@@ -53,6 +53,7 @@ typedef struct {
     size_t end;
     size_t length;
     char query[512];
+    char auth[50];
     char type[50];
     char host[50];
     size_t bodylen;
@@ -377,6 +378,7 @@ void parse_request(int fd, http_request *req){
     req->query[0] = '\0';
     req->uri[0] = '\0';
     req->host[0] = '\0';
+    req->auth[0] = '\0';
     req->type[0] = '\0';
     req->length = 0;
     req->bodylen=0;
@@ -399,6 +401,8 @@ void parse_request(int fd, http_request *req){
 	    sscanf(buf+6, "%s", &(req->host[0]) );
 	} else if( stristr(buf, "Content-length: ")==buf ) {
 	    sscanf(buf+16, "%lu", &req->length );
+	} else if( stristr(buf, "Authorization: ")==buf ) {
+	    sscanf(buf+15, "%s", &(req->auth[0]) );
 	} else if( stristr(buf, "Content-type: ")==buf ) {
 	    sscanf(buf+14, "%s", &(req->type[0]) );
 	} else if( stristr(buf, "Expect: 100-continue")==buf ) {
@@ -525,6 +529,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 	if( strlen(req->query)>0 ) { setenv("QUERY_STRING", req->query, 1); }
 	if( strlen(req->method)>0 ) { setenv("REQUEST_METHOD", req->method, 1); }
 	setenv("DOCUMENT_ROOT", cwd, 1);
+	if( strlen(req->auth)>0 ) { setenv("HTTP_AUTHORIZATION", req->auth, 1); }
 	if( strlen(req->host)>0 ) { setenv("HTTP_HOST", req->host, 1); }
 	sprintf(cmd, "/%s", req->filename );
 	if( strlen(req->filename)>0 ) { setenv("REQUEST_URI", cmd, 1); }
@@ -604,6 +609,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 	unsetenv("QUERY_STRING");
 	unsetenv("REQUEST_METHOD");
 	unsetenv("DOCUMENT_ROOT");
+	unsetenv("HTTP_AUTHORIZATION");
 	unsetenv("HTTP_HOST");
 	unsetenv("REQUEST_URI");
 	unsetenv("SCRIPT_FILENAME");
