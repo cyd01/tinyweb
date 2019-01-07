@@ -594,7 +594,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 			}
 			writen(out_fd, buf, strlen(buf));
 			while( (nb_read=fread(buf,1,BUF_SIZE,fp))>0 )  {
-				writen(out_fd, buf, nb_read);
+				if( writen(out_fd, buf, nb_read)!=nb_read ) break ;
 				if( nb_read!=BUF_SIZE ) break;
 			}
 		}
