@@ -500,6 +500,65 @@ int write_file(int fd, http_request *req, char * filename) {
     return 500;
 }
 
+#ifndef WIN32
+#define READ   0
+#define WRITE  1
+FILE * popen2(const char * command, const char * type, int * pid) {
+    pid_t child_pid;
+    int fd[2];
+    pipe(fd);
+
+    if((child_pid = fork()) == -1) {
+	perror("fork");
+        exit(1);
+    }
+
+    /* child process */
+    if (child_pid == 0) {
+        if (type == "r") {
+            close(fd[READ]);    //Close the READ end of the pipe since the child's fd is write-only
+            dup2(fd[WRITE], 1); //Redirect stdout to pipe
+        } else {
+            close(fd[WRITE]);    //Close the WRITE end of the pipe since the child's fd is read-only
+            dup2(fd[READ], 0);   //Redirect stdin to pipe
+        }
+
+        setpgid(child_pid, child_pid); //Needed so negative PIDs can kill children of /bin/sh
+        //execl("/bin/sh", "/bin/sh", "-c", command.c_str(), NULL);
+	execl("/bin/sh", "/bin/sh", "-c", command, "2>&1", NULL);
+        exit(0);
+    } else {
+        if (type == "r") {
+            close(fd[WRITE]); //Close the WRITE end of the pipe since parent's fd is read-only
+        } else {
+            close(fd[READ]); //Close the READ end of the pipe since parent's fd is write-only
+        }
+    }
+
+    *pid = child_pid;
+
+    if (type == "r") {
+        return fdopen(fd[READ], "r");
+    }
+
+    return fdopen(fd[WRITE], "w");
+}
+
+int pclose2(FILE * fp, pid_t pid) {
+    int stat;
+
+    kill(-pid, 9);
+    fclose(fp);
+    while (waitpid(pid, &stat, 0) == -1) {
+        if (errno != EINTR) {
+            stat = -1;
+            break;
+        }
+    }
+    return stat;
+}
+#endif
+
 #define BUF_SIZE 512
 int serve_dynamic(int out_fd, http_request *req ) {
 /*# Exemple de shell dynamic
@@ -523,6 +582,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 	char buf[BUF_SIZE];
 	FILE *fp ;
 	int ret = 200 ;
+	int pid;
 	
 	getcwd(cwd, sizeof(cwd));
 	
@@ -556,7 +616,8 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 #endif
 				return 500; break;
 			}
-			sprintf(cmd, "cat %s |%s\"%s/%s\" 2>&1", tmpfilename, dynamic_shell, cwd, req->filename) ;
+			//sprintf(cmd, "cat %s |%s \"%s/%s\" 2>&1", tmpfilename, dynamic_shell, cwd, req->filename) ;
+			sprintf(cmd, "cat %s | \"%s/%s\"", tmpfilename, cwd, req->filename) ;
 		} else { 
 			client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); 
 #ifdef WIN32
@@ -567,15 +628,19 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 			return 500; 
 		}
 	} else {
-		sprintf(cmd, "%s\"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
+		//sprintf(cmd, "%s \"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
+		sprintf(cmd, "\"%s/%s\"", cwd, req->filename) ;
 	}
+
+
 #ifdef WIN32
+	fp = popen(cmd,"r");
 	printf("running command %s\n",cmd);
 #else
+	fp = popen2(cmd,"r",&pid) ; printf("starting process %d\n",pid);
 	printf("running command [/bin/sh -c] %s\n",cmd);
 #endif
-
-	fp = popen(cmd,"r");
+	
 	int nb_read;
 	if( fp!=NULL ) {
 		if( !fgets(buf, BUF_SIZE, fp) ) {
@@ -595,6 +660,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 			writen(out_fd, buf, strlen(buf));
 			while( (nb_read=fread(buf,1,BUF_SIZE,fp))>0 )  {
 				if( writen(out_fd, buf, nb_read)!=nb_read ) break ;
+				fsync(out_fd);
 				if( nb_read!=BUF_SIZE ) break;
 			}
 		}
@@ -605,7 +671,12 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 	}
 	if( tmpfilename!=NULL ) { unlink(tmpfilename) ;}
 	
+#ifdef WIN32
 	pclose(fp) ;
+#else
+	printf("killing process %d\n",pid) ; pclose2(fp,pid) ;
+#endif
+	
 	unsetenv("QUERY_STRING");
 	unsetenv("REQUEST_METHOD");
 	unsetenv("DOCUMENT_ROOT");
@@ -812,6 +883,7 @@ int server_main(char *path, int default_port) {
                 perror(path);
                 exit(1);
 	}
+	printf("parent pid is %d\n",getpid());
 	listenfd = open_listenfd(default_port);
 	if (listenfd > 0) {
 		char buf[256];
