@@ -661,7 +661,9 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 			writen(out_fd, buf, strlen(buf));
 			while( (nb_read=fread(buf,1,BUF_SIZE,fp))>0 )  {
 				if( writen(out_fd, buf, nb_read)!=nb_read ) break ;
+#ifndef WIN32
 				fsync(out_fd);
+#endif
 				if( nb_read!=BUF_SIZE ) break;
 			}
 		}
