@@ -80,6 +80,8 @@ mime_map meme_types [] = {
     {".pdf", "application/pdf"},
     {".mp3", "audio/mpeg"},
     {".mp4", "video/mp4"},
+    {".txt", "text/plain"},
+    {".log", "text/plain"},
     {".xml", "text/xml"},
     {".yaml", "text/x-yaml"},
     {".yml", "text/x-yaml"},
@@ -766,7 +768,14 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
     }
 }
 
-void serve_static_put(int out_fd, http_request *req) { // curl -X PUT -H "Expect:" http://localhost:9996/1.txt --upload-file 1.txt
+void serve_static_put(int out_fd, http_request *req) { // curl -X PUT -H "Expect:" http://localhost:9999/1.txt --upload-file 1.txt --basic -u username:password
+	if( getenv("TINYWEB_AUTH")!=NULL ) {
+		if( (strlen(req->auth)==0) || strcmp(req->auth,getenv("TINYWEB_AUTH")) ) {
+			client_error(out_fd, 401, "Unauthorized", "WWW-Authenticate: Basic realm=\"Enter credentials\"", "Unauthorized") ;
+			close(out_fd) ;
+			return ;
+		}		
+	}
 	int r = write_file( out_fd, req, req->filename ) ;
 	switch( r ) {
 		case 200: client_error(out_fd, 200, "OK", NULL, "File created"); break;
@@ -782,18 +791,34 @@ void serve_static_put(int out_fd, http_request *req) { // curl -X PUT -H "Expect
 #endif
 }
 
-void serve_static(int out_fd, int in_fd, http_request *req,
-                  size_t total_size, time_t last_change_time) {
-    if( !strcmp(req->method,"HEAD") || !strcmp(req->method,"GET") || !strcmp(req->method,"POST") ) {
-	serve_static_get(out_fd, in_fd, req, total_size, last_change_time) ;
-    } else if( !strcmp(req->method,"DELETE") ) {
-	close( in_fd ) ;
+void serve_static_delete(int out_fd, http_request *req) { // curl -X DELETE http://localhost:9999/1.txt --basic -u username:password
+	if( getenv("TINYWEB_AUTH")!=NULL ) {
+		if( (strlen(req->auth)==0) || strcmp(req->auth,getenv("TINYWEB_AUTH")) ) {
+			client_error(out_fd, 401, "Unauthorized", "WWW-Authenticate: Basic realm=\"Enter credentials\"", "Unauthorized") ;
+			close(out_fd) ;
+			return ;
+		}		
+	} 
 	if( remove( req->filename )==0 ) {
 	    printf("File %s removed !\n",req->filename);
 	    client_error(out_fd, 204, "No content", NULL, NULL);
 	} else {
 	    client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to remove file");
 	}
+#ifdef WIN32
+	closesocket(out_fd);
+#else
+	close(out_fd);
+#endif
+}
+
+void serve_static(int out_fd, int in_fd, http_request *req,
+                  size_t total_size, time_t last_change_time) {
+    if( !strcmp(req->method,"HEAD") || !strcmp(req->method,"GET") || !strcmp(req->method,"POST") ) {
+	serve_static_get(out_fd, in_fd, req, total_size, last_change_time) ;
+    } else if( !strcmp(req->method,"DELETE") ) {
+	close( in_fd ) ;
+	serve_static_delete( out_fd, req ) ;
     } else if( !strcmp(req->method,"OPTIONS") ) {
 	client_error(out_fd, 200, "OK", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", NULL);
     } else if( !strcmp(req->method,"PUT") ) {
@@ -941,6 +966,7 @@ void usage( char *progname ) {
 	printf("- TINYWEB_NBPROCESS: number of concurrent processes [10]\n");
 #endif
 	printf("- TINYWEB_CMD: external scripts command []\n");
+	printf("- TINYWEB_AUTH: Basic authent for PUT and DELETE\n");
 }
 
 int main(int argc, char** argv){
