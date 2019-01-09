@@ -25,5 +25,6 @@ And the new features recently added:
 * 302 redirect for directory
 * Expect: 100-continue
 * DELETE, GET, HEAD, POST and PUT methods
+* Basic Auth for PUT and DELETE method
 * Very light dynamic script integration (scripts are *.sh)
 * Docker image (https://hub.docker.com/r/cyd01/tinyweb/)
