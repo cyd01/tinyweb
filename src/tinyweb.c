@@ -373,7 +373,7 @@ void url_decode(char* src, char* dest, int max) {
     *dest = '\0';
 }
 
-void parse_request(int fd, http_request *req){
+int parse_request(int fd, http_request *req){
     rio_t rio;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE];
     req->offset = 0;
@@ -387,9 +387,9 @@ void parse_request(int fd, http_request *req){
     req->bodylen=0;
     req->body[0] = '\0';
     
- 
     rio_readinitb(&rio, fd);
-    rio_readlineb(&rio, buf, MAXLINE);
+    rio_readlineb(&rio, buf, MAXLINE); if( (strlen(buf)<=2)||(buf[strlen(buf)-1]!='\n') ) return 0;
+
     sscanf(buf, "%s %s", method, uri); /* version is not cared */
     strcpy(req->method, method);
     /* read all */
@@ -437,11 +437,12 @@ void parse_request(int fd, http_request *req){
         }
     }
     url_decode(filename, req->filename, MAXLINE);
+    return 1;
 }
 
 
 void log_access(int status, struct sockaddr_in *c_addr, http_request *req){
-    printf("%s:%d %d - %s %s/%s (%lu) ? %s\n", inet_ntoa(c_addr->sin_addr),
+    printf("[%d] %s:%d %d - %s %s/%s (%lu) ? %s\n", getpid(), inet_ntoa(c_addr->sin_addr),
            ntohs(c_addr->sin_port), status, req->method, req->host, req->filename, req->length, req->query);
 }
 
@@ -748,7 +749,7 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 			if(n!=256) break ;
 		}
 #endif
-		printf("offset: %d \n\n", (int)offset);
+		printf("[%d] 	offset: %d \n", getpid(), (int)offset);
 		
 #ifdef WIN32
 		closesocket(out_fd);
@@ -851,11 +852,14 @@ int index_file_found(char *directory) {
 }
 
 void process(int fd, struct sockaddr_in *clientaddr){
-    printf("accept request, fd is %d, pid is %d\n", fd, getpid());
+    printf("[%d] accept request, fd is %d\n", getpid(), fd);
     http_request req;
-    parse_request(fd, &req);
+    if( !parse_request(fd, &req) ) {
+	    printf("[%d] Parse error !\n",getpid());
+	    return ;
+    }
 	
-    printf("request filename: %s\n", req.filename);
+    printf("[%d] request filename: %s\n", getpid(), req.filename);
 
     struct stat sbuf;
     int status = 200, ffd = open(req.filename, O_RDONLY, 0);
@@ -916,7 +920,7 @@ int server_main(char *path, int default_port) {
 	if (listenfd > 0) {
 		char buf[256];
 		path = getcwd(buf, 256);
-		printf("listen on port %d, scan directory %s, fd is %d\n", default_port, path, listenfd);
+		printf("[%d] listen on port %d, scan directory %s, fd is %d\n",getpid(), default_port, path, listenfd);
 	} else {
 		perror("ERROR");
 		exit(listenfd);
@@ -946,7 +950,7 @@ int server_main(char *path, int default_port) {
 	while(1){
 		connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
 		struct adresseIP * adIP = (struct adresseIP*) &( clientaddr.sin_addr.s_addr ) ;
-		printf("accept connexion from %d.%d.%d.%d:%d\n",adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
+		printf("[%d] accept connexion from %d.%d.%d.%d:%d\n",getpid(),adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
 		process(connfd, &clientaddr);
 #ifdef WIN32
 		closesocket(connfd);
