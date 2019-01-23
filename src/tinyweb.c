@@ -101,6 +101,13 @@ int nb_forks = 10 ;
 
 char *dynamic_shell = "" ;
 
+char logtime[50] = "" ;
+char * logt() {
+	time_t t = time(NULL);
+	strftime(logtime,sizeof(logtime),"%a, %d %b %Y %T %z",localtime(&t));
+	return logtime;
+}
+
 void rio_readinitb(rio_t *rp, int fd){
     rp->rio_fd = fd;
     rp->rio_cnt = 0;
@@ -441,8 +448,8 @@ int parse_request(int fd, http_request *req){
 }
 
 
-void log_access(int status, struct sockaddr_in *c_addr, http_request *req){
-    printf("[%d] %s:%d %d - %s %s/%s (%lu) ? %s\n", getpid(), inet_ntoa(c_addr->sin_addr),
+void log_access(int status, struct sockaddr_in *c_addr, http_request *req) {
+    printf("[%d][%s] %s:%d %d - %s %s/%s (%lu) ? %s\n", getpid(), logt(), inet_ntoa(c_addr->sin_addr),
            ntohs(c_addr->sin_port), status, req->method, req->host, req->filename, req->length, req->query);
 }
 
@@ -749,7 +756,7 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 			if(n!=256) break ;
 		}
 #endif
-		printf("[%d] 	offset: %d \n", getpid(), (int)offset);
+		printf("[%d][%s] 	offset: %d \n", getpid(), logt(), (int)offset);
 		
 #ifdef WIN32
 		closesocket(out_fd);
@@ -852,14 +859,14 @@ int index_file_found(char *directory) {
 }
 
 void process(int fd, struct sockaddr_in *clientaddr){
-    printf("[%d] accept request, fd is %d\n", getpid(), fd);
+    printf("[%d][%s] accept request, fd is %d\n", getpid(), logt(), fd);
     http_request req;
     if( !parse_request(fd, &req) ) {
-	    printf("[%d] Parse error !\n",getpid());
+	    printf("[%d][%s] Parse error !\n",getpid(),logt() );
 	    return ;
     }
 	
-    printf("[%d] request filename: %s\n", getpid(), req.filename);
+    printf("[%d][%s] request filename: %s\n", getpid(),logt(), req.filename);
 
     struct stat sbuf;
     int status = 200, ffd = open(req.filename, O_RDONLY, 0);
@@ -920,7 +927,7 @@ int server_main(char *path, int default_port) {
 	if (listenfd > 0) {
 		char buf[256];
 		path = getcwd(buf, 256);
-		printf("[%d] listen on port %d, scan directory %s, fd is %d\n",getpid(), default_port, path, listenfd);
+		printf("[%d][%s] listen on port %d, scan directory %s, fd is %d\n",getpid(),logt(),default_port, path, listenfd);
 	} else {
 		perror("ERROR");
 		exit(listenfd);
@@ -950,7 +957,7 @@ int server_main(char *path, int default_port) {
 	while(1){
 		connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
 		struct adresseIP * adIP = (struct adresseIP*) &( clientaddr.sin_addr.s_addr ) ;
-		printf("[%d] accept connexion from %d.%d.%d.%d:%d\n",getpid(),adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
+		printf("[%d][%s] accept connexion from %d.%d.%d.%d:%d\n",getpid(),logt(),adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
 		process(connfd, &clientaddr);
 #ifdef WIN32
 		closesocket(connfd);
