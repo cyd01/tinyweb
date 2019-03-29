@@ -939,7 +939,7 @@ int server_main(char *path, int default_port) {
 	signal(SIGPIPE, SIG_IGN);
 	int i;
 	if( nb_forks>0 )
-	for(i = 0; i < 10; i++) {
+	for(i = 0; i < nb_forks; i++) {
 		int pid = fork();
 		if (pid == 0) {         //  child
 			while(1) {
