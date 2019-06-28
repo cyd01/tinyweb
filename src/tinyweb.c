@@ -36,6 +36,8 @@
 #define MAXLINE 1024   /* max length of a line */
 #define RIO_BUFSIZE 1024
 
+int debug_flag = 0 ; 		/* Debug mode flag */
+
 typedef struct {
     int rio_fd;                 /* descriptor for this buf */
     int rio_cnt;                /* unread byte in this buf */
@@ -57,6 +59,7 @@ typedef struct {
     char auth[50];
     char type[50];
     char host[50];
+    char vhost[50];
     size_t bodylen;
     char body[MAXLINE];
 } http_request;
@@ -64,27 +67,29 @@ typedef struct {
 typedef struct {
     const char *extension;
     const char *mime_type;
+    const int expiration;
 } mime_map;
 
-mime_map meme_types [] = {
-    {".htm", "text/html"},
-    {".html", "text/html"},
-    {".css", "text/css"},
-    {".js", "text/javascript"},
-    {".gif", "image/gif"},
-    {".jpeg", "image/jpeg"},
-    {".jpg", "image/jpeg"},
-    {".png", "image/png"},
-    {".ico", "image/x-icon"},
-    {".svg", "image/svg+xml"},
-    {".pdf", "application/pdf"},
-    {".mp3", "audio/mpeg"},
-    {".mp4", "video/mp4"},
-    {".txt", "text/plain"},
-    {".log", "text/plain"},
-    {".xml", "text/xml"},
-    {".yaml", "text/x-yaml"},
-    {".yml", "text/x-yaml"},
+mime_map mime_types [] = {
+    {".htm", "text/html", 2},
+    {".html", "text/html", 2},
+    {".css", "text/css", 2},
+    {".js", "text/javascript", 2},
+    {".gif", "image/gif", 10},
+    {".jpeg", "image/jpeg", 10},
+    {".jpg", "image/jpeg", 10},
+    {".png", "image/png", 10},
+    {".ico", "image/x-icon", 10},
+    {".svg", "image/svg+xml", 10},
+    {".pdf", "application/pdf", 10},
+    {".mp3", "audio/mpeg", 30},
+    {".mp4", "video/mp4", 30},
+    {".txt", "text/plain", 2},
+    {".log", "text/plain", 2},
+    {".xml", "text/xml", 2},
+    {".yaml", "text/x-yaml", 2},
+    {".yml", "text/x-yaml", 2},
+    {".json", "application/json", 0},
     {NULL, NULL},
 };
 
@@ -147,13 +152,14 @@ ssize_t writen(int fd, void *usrbuf, size_t n){
  */
 /* $begin rio_read */
 static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n){
-    int cnt;
+    int cnt,i;
     while (rp->rio_cnt <= 0){  /* refill if buf is empty */
 #ifdef WIN32
 	rp->rio_cnt = recv(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf), 0);
 #else
         rp->rio_cnt = read(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf));
-#endif	    
+#endif
+	if( debug_flag && (rp->rio_cnt>0) ) { for(i=0;i<rp->rio_cnt;i++) printf( "%c", rp->rio_buf[i] ) ; }
         if (rp->rio_cnt < 0) {
 	    //if (errno == EBADF ) printf("Bad file descriptor !\n");
             if (errno != EINTR) /* interrupted by sig handler return */
@@ -279,7 +285,7 @@ void handle_directory_request(int out_fd, int dir_fd, char *filename){
     char buf[MAXLINE], m_time[32], size[16];
     struct stat statbuf;
     sprintf(buf, "HTTP/1.1 200 OK\r\n%s%s%s%s%s",
-            "Content-Type: text/html\r\n\r\n",
+            "Expires: 0\r\nContent-Type: text/html\r\n\r\n",
             "<html><head><style>",
             "body{font-family: monospace; font-size: 13px;}",
             "td {padding: 1.5px 6px;}",
@@ -313,10 +319,24 @@ void handle_directory_request(int out_fd, int dir_fd, char *filename){
     closedir(d);
 }
 
+static const int get_expiration(char *filename){
+    char *dot = strrchr(filename, '.');
+    if(dot){ // strrchar Locate last occurrence of character in string
+        mime_map *map = mime_types;
+        while(map->extension){
+            if(strcmp(map->extension, dot) == 0){
+                return map->expiration;
+            }
+            map++;
+        }
+    }
+    return 0;
+}
+
 static const char* get_mime_type(char *filename){
     char *dot = strrchr(filename, '.');
     if(dot){ // strrchar Locate last occurrence of character in string
-        mime_map *map = meme_types;
+        mime_map *map = mime_types;
         while(map->extension){
             if(strcmp(map->extension, dot) == 0){
                 return map->mime_type;
@@ -382,12 +402,13 @@ void url_decode(char* src, char* dest, int max) {
 
 int parse_request(int fd, http_request *req){
     rio_t rio;
-    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE];
+    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], *pst;
     req->offset = 0;
     req->end = 0;              /* default */
     req->query[0] = '\0';
     req->uri[0] = '\0';
     req->host[0] = '\0';
+    req->vhost[0] = '\0';
     req->auth[0] = '\0';
     req->type[0] = '\0';
     req->length = 0;
@@ -409,6 +430,8 @@ int parse_request(int fd, http_request *req){
             if( req->end != 0) req->end ++;
 	} else if( stristr(buf,"Host: ")==buf ) {
 	    sscanf(buf+6, "%s", &(req->host[0]) );
+	    strcpy(req->vhost,req->host);
+	    if( (pst=strstr(req->vhost,":"))!=NULL ) { pst[0]='\0'; }
 	} else if( stristr(buf, "Content-length: ")==buf ) {
 	    sscanf(buf+16, "%lu", &req->length );
 	} else if( stristr(buf, "Authorization: ")==buf ) {
@@ -712,6 +735,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 void serve_static_get(int out_fd, int in_fd, http_request *req,
                   size_t total_size, time_t last_change_time) {
     char buf[256];
+    int expiration=0;
     if (req->offset > 0){
         sprintf(buf, "HTTP/1.1 206 Partial\r\n");
         sprintf(buf + strlen(buf), "Content-Range: bytes %lu-%lu/%lu\r\n",
@@ -727,7 +751,12 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
     strftime(date, 100, "%a, %d %b %Y %H:%M:%S %Z", localtime(&(current_time)));
     sprintf(buf + strlen(buf), "Date: %s\r\n", date);
     
-    sprintf(buf + strlen(buf), "Cache-Control: no-cache\r\nExpires: 0\r\n");
+    expiration = get_expiration(req->filename);
+    if( expiration>0 ) {
+	    sprintf(buf + strlen(buf), "Cache-Control: public, max-age=%d\r\n",60*expiration);
+    } else {
+	sprintf(buf + strlen(buf), "Cache-Control: no-cache\r\nExpires: 0\r\n");
+    }
     // sprintf(buf + strlen(buf), "Cache-Control: public, max-age=315360000\r\nExpires: Thu, 31 Dec 2037 23:55:55 GMT\r\n");
 
     sprintf(buf + strlen(buf), "Content-type: %s\r\n",
@@ -756,7 +785,7 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 			if(n!=256) break ;
 		}
 #endif
-		printf("[%d][%s] 	offset: %d \n", getpid(), logt(), (int)offset);
+		if( debug_flag ) printf("[%d][%s] 	offset: %d \n", getpid(), logt(), (int)offset);
 		
 #ifdef WIN32
 		closesocket(out_fd);
@@ -858,6 +887,17 @@ int index_file_found(char *directory) {
 	return ret ;
 }
 
+int search_vhost(char *filename, char *vhost) {
+    int fd;
+    char *vhost_filename;
+    if( strlen(vhost)<=0 ) { return -1 ; }
+    vhost_filename = (char*)malloc( strlen(filename)+strlen(vhost)+1 ) ;
+    sprintf( vhost_filename, "%s/%s", vhost, filename );
+    fd = open(vhost_filename, O_RDONLY, 0);
+    free( vhost_filename ) ;
+    return fd ;
+}
+
 void process(int fd, struct sockaddr_in *clientaddr){
     printf("[%d][%s] accept request, fd is %d\n", getpid(), logt(), fd);
     http_request req;
@@ -866,10 +906,11 @@ void process(int fd, struct sockaddr_in *clientaddr){
 	    return ;
     }
 	
-    printf("[%d][%s] request filename: %s\n", getpid(),logt(), req.filename);
+    printf("[%d][%s] request filename: %s/%s\n", getpid(),logt(), req.host,req.filename);
 
     struct stat sbuf;
-    int status = 200, ffd = open(req.filename, O_RDONLY, 0);
+    int status = 200, ffd  ;
+    if( (ffd = search_vhost(req.filename,req.vhost))<=0 ) { ffd = open(req.filename, O_RDONLY, 0); } 
     if( !strcmp(req.method,"PUT") ) {
 	serve_static_put(fd, &req) ;
     } else if( ffd<=0 ) {
@@ -978,6 +1019,7 @@ void usage( char *progname ) {
 #endif
 	printf("- TINYWEB_CMD: external scripts command []\n");
 	printf("- TINYWEB_AUTH: Basic authent for PUT and DELETE\n");
+	printf("- TINYWEB_DEBUG: unable debug mode\n");
 }
 
 int main(int argc, char** argv){
@@ -993,6 +1035,7 @@ int main(int argc, char** argv){
     if( getenv("TMPDIR")!=NULL ) { strcpy(tmp_dir, getenv("TMPDIR")); }
     else if( getenv("TEMP")!=NULL ) { strcpy(tmp_dir, getenv("TEMP")); }
     else if( getenv("TMP")!=NULL ) { strcpy(tmp_dir, getenv("TMP")); }
+    else if( getenv("TINYWEB_DEBUG")!=NULL ) { debug_flag = 1 ; }
     
     if(chdir(path) != 0) {
         perror(path);
