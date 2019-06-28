@@ -26,5 +26,6 @@ And the new features recently added:
 * Expect: 100-continue
 * DELETE, GET, HEAD, POST and PUT methods
 * Basic Auth for PUT and DELETE method
+* Light virtual host feature
 * Very light dynamic script integration (scripts are *.sh)
 * Docker image (https://hub.docker.com/r/cyd01/tinyweb/)
