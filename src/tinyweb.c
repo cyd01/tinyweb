@@ -269,6 +269,18 @@ int openat(int fd, const char *pathname, int flags) {
 	strcat( filename, pathname ) ;
 	return open(filename,flags);
 }
+#ifndef NO_ENV
+int setenv(const char *name, const char *value, int overwrite) {
+	char *buf;
+	int ret;
+	buf = (char*)malloc( strlen(name)+strlen(value)+2 ) ;
+	sprintf( buf, "%s=%s", name, value ) ;
+	ret = _putenv( buf ) ;
+	free( buf ) ;
+	return ret ;
+}
+int unsetenv(const char *name) { return _putenv( name ) ; }
+#endif
 #endif
 
 void handle_directory_redirect(int out_fd, char *filename, char *redirect) {
@@ -735,7 +747,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 void serve_static_get(int out_fd, int in_fd, http_request *req,
                   size_t total_size, time_t last_change_time) {
     char buf[256];
-    int expiration=0;
+    int expiration=0,i;
     if (req->offset > 0){
         sprintf(buf, "HTTP/1.1 206 Partial\r\n");
         sprintf(buf + strlen(buf), "Content-Range: bytes %lu-%lu/%lu\r\n",
@@ -776,6 +788,12 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 #else
 		int n;
 
+		if( offset>0 ) {
+			if( (int)(offset/256) > 0 ) for(i=0;i<(int)(offset/256);i++) { 
+				if( read(in_fd,buf,256)<0 ) { client_error(out_fd, 500, "Internal server error", "", "Bad offset") ; close(out_fd) ; return ; }
+			}
+			if( (offset%256)>0 ) {  read(in_fd,buf,offset%256) ; }
+		}
 		while( (n=read(in_fd,buf,256))>0 ) {
 #ifdef WIN32
 			send(out_fd,buf,n,0);
