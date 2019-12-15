@@ -296,13 +296,15 @@ void handle_directory_redirect(int out_fd, char *filename, char *redirect) {
 void handle_directory_request(int out_fd, int dir_fd, char *filename){
     char buf[MAXLINE], m_time[32], size[16];
     struct stat statbuf;
-    sprintf(buf, "HTTP/1.1 200 OK\r\n%s%s%s%s%s",
+    sprintf(buf, "HTTP/1.1 200 OK\r\n%s%s%s%s%s%s%s",
             "Expires: 0\r\nContent-Type: text/html\r\n\r\n",
-            "<html><head><style>",
+            "<html><head><meta charset=\"utf-8\"><title>directory: ",filename,
+	    "</title><style>", 
             "body{font-family: monospace; font-size: 13px;}",
             "td {padding: 1.5px 6px;}",
-            "</style></head><body><table>\n");
+            "</style></head><body><table>\n" );
     writen(out_fd, buf, strlen(buf));
+	
     DIR *d = (DIR*)fdopendir(dir_fd);
     struct dirent *dp;
     int ffd;
