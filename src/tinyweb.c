@@ -570,7 +570,6 @@ FILE * popen2(const char * command, const char * type, int * pid) {
             close(fd[WRITE]);    //Close the WRITE end of the pipe since the child's fd is read-only
             dup2(fd[READ], 0);   //Redirect stdin to pipe
         }
-
         setpgid(child_pid, child_pid); //Needed so negative PIDs can kill children of /bin/sh
         //execl("/bin/sh", "/bin/sh", "-c", command.c_str(), NULL);
 	execl("/bin/sh", "/bin/sh", "-c", command, "2>&1", NULL);
@@ -1003,11 +1002,26 @@ int server_main(char *path, int default_port) {
 	for(i = 0; i < nb_forks; i++) {
 		int pid = fork();
 		if (pid == 0) {         //  child
+			int ppid ;
+
 			while(1) {
-				connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
-				process(connfd, &clientaddr);
-				close(connfd);
+				ppid = fork();
+				if( ppid==0 ) {	// petit-fils
+					while(1) {
+						connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
+						process(connfd, &clientaddr);
+						close(connfd);
+					}
+				} else if( ppid>0 ) { // On est dans le fils et on attend un crash du petit fils
+					int status ;
+					printf("grandchild pid is %d\n", ppid);
+					wait( &status ) ;
+					printf( "grandchild %d terminaison with code %d\n", ppid, status ) ;
+					sleep( 2 ) ;
+				} else {
+				}
 			}
+	
 		} else if (pid > 0) {   //  parent
 			printf("child pid is %d\n", pid);
 		} else {
@@ -1015,7 +1029,7 @@ int server_main(char *path, int default_port) {
 		}
 	}
 #endif
-	while(1){
+	while(1) {
 		connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
 		struct adresseIP * adIP = (struct adresseIP*) &( clientaddr.sin_addr.s_addr ) ;
 		printf("[%d][%s] accept connexion from %d.%d.%d.%d:%d\n",getpid(),logt(),adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
