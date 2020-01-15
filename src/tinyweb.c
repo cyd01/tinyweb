@@ -1003,7 +1003,6 @@ int server_main(char *path, int default_port) {
 		int pid = fork();
 		if (pid == 0) {         //  child
 			int ppid ;
-
 			while(1) {
 				ppid = fork();
 				if( ppid==0 ) {	// petit-fils
@@ -1019,9 +1018,10 @@ int server_main(char *path, int default_port) {
 					printf( "grandchild %d terminaison with code %d\n", ppid, status ) ;
 					sleep( 2 ) ;
 				} else {
+					perror("fork");
 				}
+
 			}
-	
 		} else if (pid > 0) {   //  parent
 			printf("child pid is %d\n", pid);
 		} else {
