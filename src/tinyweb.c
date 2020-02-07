@@ -1057,9 +1057,10 @@ void usage( char *progname ) {
 }
 
 int main(int argc, char** argv){
-    int default_port = 9999;
-    char buf[256];
-    char *path = getcwd(buf, 256);
+    int default_port = 9999 ;
+    char buf[1024] ;
+    
+    char *path = getcwd(buf, 256) ;
 
     if( getenv("TINYWEB_PORT")!=NULL ) { default_port = atoi(getenv("TINYWEB_PORT")) ; if( (default_port<1)||(default_port>65535) ) {default_port = 9999;}  }
     if( getenv("TINYWEB_DIR")!=NULL ) { path = getenv("TINYWEB_DIR") ; }
@@ -1069,8 +1070,9 @@ int main(int argc, char** argv){
     if( getenv("TMPDIR")!=NULL ) { strcpy(tmp_dir, getenv("TMPDIR")); }
     else if( getenv("TEMP")!=NULL ) { strcpy(tmp_dir, getenv("TEMP")); }
     else if( getenv("TMP")!=NULL ) { strcpy(tmp_dir, getenv("TMP")); }
-    else if( getenv("TINYWEB_DEBUG")!=NULL ) { debug_flag = 1 ; }
+    else if( getenv("TINYWEB_DEBUG")!=NULL ) { debug_flag = 1 ; printf( "Debug mode enabled\n" ) ; }
     
+    if( debug_flag ) { printf( "Switching to %s directory\n", path ) ; }
     if(chdir(path) != 0) {
         perror(path);
         exit(1);
@@ -1082,6 +1084,7 @@ int main(int argc, char** argv){
             default_port = atoi(argv[1]);
         } else {
             path = argv[1];
+	    if( debug_flag ) { printf( "Switching to <%s> directory\n", path ) ; }
             if(chdir(argv[1]) != 0) {
                 perror(argv[1]);
                 exit(1);
