@@ -32,6 +32,8 @@
 #define TCP_CORK 3
 #endif
 
+#define DEFAULT_PORT 9999
+
 #define LISTENQ  1024  /* second argument to listen() */
 #define MAXLINE 1024   /* max length of a line */
 #define RIO_BUFSIZE 1024
@@ -907,36 +909,63 @@ int index_file_found(char *directory) {
 }
 
 int search_vhost(char *filename, char *vhost) {
-    int fd;
+    int fd;	
     char *vhost_filename;
-    if( strlen(vhost)<=0 ) { return -1 ; }
+	
+    if( (vhost==NULL) || (strlen(vhost)<=0) ) { return -1 ; }
     vhost_filename = (char*)malloc( strlen(filename)+strlen(vhost)+1 ) ;
     sprintf( vhost_filename, "%s/%s", vhost, filename );
+    if( debug_flag ) { printf("Searching for file %s\n",vhost_filename); }
     fd = open(vhost_filename, O_RDONLY, 0);
+    if( debug_flag ) if( fd> 0 ) { printf("Found file %s in vhost %s\n",filename,vhost); }
     free( vhost_filename ) ;
     return fd ;
 }
 
-void process(int fd, struct sockaddr_in *clientaddr){
+int mopen(char *path, char *filename, char *vhost) {
+    int ffd = -1 ;
+    char * p ;
+    p = (char*) malloc( strlen(path)+strlen(filename)+strlen(vhost)+10) ;
+
+    if( (vhost!=NULL) && (strlen(vhost)>0) ) {
+	sprintf(p,"%s/%s/%s",path,vhost,filename);
+#ifdef WIN32
+	int i;
+	for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
+#endif
+	if( debug_flag ) { printf("Searching for file %s\n",p); }
+	ffd = open( p, O_RDONLY, 0);
+    }
+    if( ffd<=0 ) {
+	sprintf(p,"%s/%s",path,filename);
+#ifdef WIN32
+	int i;
+	for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
+#endif
+	if( debug_flag ) { printf("Searching for file %s\n",p); }
+	ffd = open(p, O_RDONLY, 0);
+    }
+    free(p);
+    return ffd;
+}
+
+void process(char*path, int fd, struct sockaddr_in *clientaddr){
     printf("[%d][%s] accept request, fd is %d\n", getpid(), logt(), fd);
     http_request req;
     if( !parse_request(fd, &req) ) {
 	    printf("[%d][%s] Parse error !\n",getpid(),logt() );
 	    return ;
     }
-	
-    printf("[%d][%s] request filename: %s/%s\n", getpid(),logt(), req.host,req.filename);
 
+    printf("[%d][%s] request filename: %s/%s\n", getpid(),logt(), req.host, req.filename);
+    
     struct stat sbuf;
     int status = 200, ffd  ;
-    if( (ffd = search_vhost(req.filename,req.vhost))<=0 ) { ffd = open(req.filename, O_RDONLY, 0); } 
+
     if( !strcmp(req.method,"PUT") ) {
 	serve_static_put(fd, &req) ;
-    } else if( ffd<=0 ) {
-        status = 404;
-        char *msg = "File not found";
-        client_error(fd, status, "Not found", NULL, msg);
-    } else {
+    } else if( (ffd=mopen(path,req.filename,req.vhost))>0 ) {
+	if( debug_flag ) { printf("Found file %s\n",req.filename); }
         fstat(ffd, &sbuf);
         if(S_ISREG(sbuf.st_mode)){
             if (req.end == 0){
@@ -966,28 +995,34 @@ void process(int fd, struct sockaddr_in *clientaddr){
             char *msg = "Unknow Error";
             client_error(fd, status, "Error", NULL, msg);
         }
+	close(ffd);
+    } else {
+	status = 404;
+        char *msg = "File not found";
+        client_error(fd, status, "Not found", NULL, msg);
     }
-    close(ffd);
     log_access(status, clientaddr, &req);
 }
 
 struct adresseIP { unsigned char i1; unsigned char i2; unsigned char i3; unsigned char i4; } ;
-int server_main(char *path, int default_port) {
+int server_main(char *path, int port) {
 	int listenfd,
 	    connfd;
 	struct sockaddr_in clientaddr;
 	socklen_t clientlen = sizeof clientaddr;
 
+	if( debug_flag ) { printf( "Starting webser server on %d in %s\n", port, path ) ; }
+	if( debug_flag ) { printf( "Switching to %s directory\n", path ) ; }
 	if(chdir(path) != 0) {
                 perror(path);
                 exit(1);
 	}
-	printf("parent pid is %d\n",getpid());
-	listenfd = open_listenfd(default_port);
+	printf("[%d][%s] parent pid is %d\n",getpid(),logt(),getpid());
+	listenfd = open_listenfd(port);
 	if (listenfd > 0) {
-		char buf[256];
-		path = getcwd(buf, 256);
-		printf("[%d][%s] listen on port %d, scan directory %s, fd is %d\n",getpid(),logt(),default_port, path, listenfd);
+		char buf[PATH_MAX];
+		path = getcwd(buf, sizeof(buf));
+		printf("[%d][%s] listen on port %d, scan directory %s, fd is %d\n",getpid(),logt(),port, path, listenfd);
 	} else {
 		perror("ERROR");
 		exit(listenfd);
@@ -1008,14 +1043,14 @@ int server_main(char *path, int default_port) {
 				if( ppid==0 ) {	// petit-fils
 					while(1) {
 						connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
-						process(connfd, &clientaddr);
+						process(path, connfd, &clientaddr);
 						close(connfd);
 					}
 				} else if( ppid>0 ) { // On est dans le fils et on attend un crash du petit fils
 					int status ;
-					printf("grandchild pid is %d\n", ppid);
+					printf("[%d][%s] grandchild pid is %d\n",getpid(),logt(), ppid);
 					wait( &status ) ;
-					printf( "grandchild %d terminaison with code %d\n", ppid, status ) ;
+					printf( "[%d][%s] grandchild %d terminaison with code %d\n",getpid(),logt(), ppid, status ) ;
 					sleep( 2 ) ;
 				} else {
 					perror("fork");
@@ -1023,7 +1058,7 @@ int server_main(char *path, int default_port) {
 
 			}
 		} else if (pid > 0) {   //  parent
-			printf("child pid is %d\n", pid);
+			printf("[%d][%s] child pid is %d\n",getpid(),logt(), pid);
 		} else {
 			perror("fork");
 		}
@@ -1033,7 +1068,7 @@ int server_main(char *path, int default_port) {
 		connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
 		struct adresseIP * adIP = (struct adresseIP*) &( clientaddr.sin_addr.s_addr ) ;
 		printf("[%d][%s] accept connexion from %d.%d.%d.%d:%d\n",getpid(),logt(),adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
-		process(connfd, &clientaddr);
+		process(path, connfd, &clientaddr);
 #ifdef WIN32
 		closesocket(connfd);
 #else		
@@ -1044,7 +1079,15 @@ int server_main(char *path, int default_port) {
 }
 
 void usage( char *progname ) {
-	printf("Usage: %s [-h] [[directory] port]\n",progname);
+#ifndef WIN32
+	printf("Usage: %s [-d] [-h] [-v] [[directory] port]\n",progname);
+	printf("\t-d: daemon mode\n");
+#else
+	printf("Usage: %s [-h] [-v] [[directory] port]\n",progname);
+#endif
+	printf("\t-h: print this help message\n");
+	printf("\t-v: verbose mode\n");
+	printf("\n");
 	printf("Configuration variables:\n");
 	printf("- TINYWEB_DIR: home directory [.]\n");
 	printf("- TINYWEB_PORT: listening port [9999]\n");
@@ -1056,13 +1099,13 @@ void usage( char *progname ) {
 	printf("- TINYWEB_DEBUG: unable debug mode\n");
 }
 
-int main(int argc, char** argv){
-    int default_port = 9999 ;
-    char buf[1024] ;
+int main(int argc, char** argv) {
+    int port = DEFAULT_PORT, opt ;
+    char buf[PATH_MAX] ;
     
-    char *path = getcwd(buf, 256) ;
+    char *path = getcwd(buf, sizeof(buf)) ;
 
-    if( getenv("TINYWEB_PORT")!=NULL ) { default_port = atoi(getenv("TINYWEB_PORT")) ; if( (default_port<1)||(default_port>65535) ) {default_port = 9999;}  }
+    if( getenv("TINYWEB_PORT")!=NULL ) { port = atoi(getenv("TINYWEB_PORT")) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; } }
     if( getenv("TINYWEB_DIR")!=NULL ) { path = getenv("TINYWEB_DIR") ; }
     if( getenv("TINYWEB_NBPROCESS")!=NULL ) { nb_forks=atoi(getenv("TINYWEB_NBPROCESS")); if(nb_forks<0) nb_forks=0;  }
     if( getenv("TINYWEB_CMD")!=NULL ) { dynamic_shell=(char*)malloc(strlen(getenv("TINYWEB_CMD"))+1);strcpy(dynamic_shell,getenv("TINYWEB_CMD"));strcat(dynamic_shell," "); }
@@ -1072,39 +1115,35 @@ int main(int argc, char** argv){
     else if( getenv("TMP")!=NULL ) { strcpy(tmp_dir, getenv("TMP")); }
     else if( getenv("TINYWEB_DEBUG")!=NULL ) { debug_flag = 1 ; printf( "Debug mode enabled\n" ) ; }
     
-    if( debug_flag ) { printf( "Switching to %s directory\n", path ) ; }
-    if(chdir(path) != 0) {
-        perror(path);
-        exit(1);
+    while ((opt = getopt(argc, argv, "hdv")) != -1) {
+	switch (opt) {
+        case 'h': usage(argv[0]); exit(0); break;
+#ifndef WIN32
+	case 'd': // daemon
+		if( fork()!= 0 ) { exit(0); }
+		if( fork()!= 0 ) { exit(0); }
+		break;
+#endif
+	case 'v': debug_flag = 1 ; break;
+	default: /* '?' */ usage(argv[0]); exit(0); break;
+	}
     }
 
-    if(argc == 2) {
-	if( !strcmp(argv[1],"-h") ) { usage(argv[0]); exit(0); }
-        if(argv[1][0] >= '0' && argv[1][0] <= '9') {
-            default_port = atoi(argv[1]);
-        } else {
-            path = argv[1];
-	    if( debug_flag ) { printf( "Switching to <%s> directory\n", path ) ; }
-            if(chdir(argv[1]) != 0) {
-                perror(argv[1]);
-                exit(1);
-            }
-        }
-    } else if (argc == 3) {
-        default_port = atoi(argv[2]);
-        path = argv[1];
-        if(chdir(argv[1]) != 0) {
-            perror(argv[1]);
-            exit(1);
-        }
+    if( argc==(optind+1) ) {
+	    port = atoi(argv[optind]) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; } 
+    } else if( argc==(optind+2) ) {
+	path = argv[optind] ;
+	port = atoi(argv[optind+1]) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; }
     }
+    
 #ifdef WIN32
 WSADATA wsaData;
 if( WSAStartup(MAKEWORD(2,2), &wsaData) ) {
     printf("Unable to start winsock!\n");
     return EXIT_FAILURE ; }
 #endif
-    return server_main( path, default_port ) ;
+    printf("\n");
+    return server_main( path, port ) ;
 }
 
 /*
