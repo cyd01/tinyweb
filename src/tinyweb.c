@@ -751,6 +751,7 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
                   size_t total_size, time_t last_change_time) {
     char buf[256];
     int expiration=0,i;
+    long size=0;
     if (req->offset > 0){
         sprintf(buf, "HTTP/1.1 206 Partial\r\n");
         sprintf(buf + strlen(buf), "Content-Range: bytes %lu-%lu/%lu\r\n",
@@ -792,21 +793,22 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
 		int n;
 
 		if( offset>0 ) {
-			if( (int)(offset/256) > 0 ) for(i=0;i<(int)(offset/256);i++) { 
+			if( (int)(offset/256) > 0 ) for( i=0 ; i<(int)(offset/256) ; i++ ) { 
 				if( read(in_fd,buf,256)<0 ) { client_error(out_fd, 500, "Internal server error", "", "Bad offset") ; close(out_fd) ; return ; }
 			}
-			if( (offset%256)>0 ) {  read(in_fd,buf,offset%256) ; }
+			if( (offset%256)>0 ) { read(in_fd,buf,offset%256) ; }
 		}
 		while( (n=read(in_fd,buf,256))>0 ) {
 #ifdef WIN32
-			send(out_fd,buf,n,0);
+			n = send(out_fd,buf,n,0);
 #else
 			write(out_fd,buf,n);
 #endif
+			size += n ;
 			if(n!=256) break ;
 		}
 #endif
-		if( debug_flag ) printf("[%d][%s] 	offset: %d \n", getpid(), logt(), (int)offset);
+		if( debug_flag ) printf("[%d][%s] 	offset: %d size:%ld\n", getpid(), logt(), (int)offset, size);
 		
 #ifdef WIN32
 		closesocket(out_fd);
@@ -908,20 +910,6 @@ int index_file_found(char *directory) {
 	return ret ;
 }
 
-int search_vhost(char *filename, char *vhost) {
-    int fd;	
-    char *vhost_filename;
-	
-    if( (vhost==NULL) || (strlen(vhost)<=0) ) { return -1 ; }
-    vhost_filename = (char*)malloc( strlen(filename)+strlen(vhost)+1 ) ;
-    sprintf( vhost_filename, "%s/%s", vhost, filename );
-    if( debug_flag ) { printf("Searching for file %s\n",vhost_filename); }
-    fd = open(vhost_filename, O_RDONLY, 0);
-    if( debug_flag ) if( fd> 0 ) { printf("Found file %s in vhost %s\n",filename,vhost); }
-    free( vhost_filename ) ;
-    return fd ;
-}
-
 int mopen(char *path, char *filename, char *vhost) {
     int ffd = -1 ;
     char * p ;
@@ -932,18 +920,22 @@ int mopen(char *path, char *filename, char *vhost) {
 #ifdef WIN32
 	int i;
 	for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
+	ffd = open( p, O_RDONLY|O_BINARY, 0);
+#else
+	ffd = open( p, O_RDONLY, 0);
 #endif
 	if( debug_flag ) { printf("Searching for file %s\n",p); }
-	ffd = open( p, O_RDONLY, 0);
     }
     if( ffd<=0 ) {
 	sprintf(p,"%s/%s",path,filename);
 #ifdef WIN32
 	int i;
 	for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
+	ffd = open(p, O_RDONLY|O_BINARY, 0);
+#else
+	ffd = open(p, O_RDONLY, 0);
 #endif
 	if( debug_flag ) { printf("Searching for file %s\n",p); }
-	ffd = open(p, O_RDONLY, 0);
     }
     free(p);
     return ffd;
