@@ -107,6 +107,7 @@ char tmp_dir[256]="." ;
 int nb_forks = 10 ;
 
 char *dynamic_shell = "" ;
+char *dynamic_cat = "cat" ;
 
 char logtime[50] = "" ;
 char * logt() {
@@ -666,9 +667,9 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 				return 500; break;
 			}
 			if( strlen(dynamic_shell)>0 ) {
-				sprintf(cmd, "cat %s |%s \"%s/%s\" 2>&1", tmpfilename, dynamic_shell, cwd, req->filename) ;
+				sprintf(cmd, "%s %s |%s \"%s/%s\" 2>&1", dynamic_cat, tmpfilename, dynamic_shell, cwd, req->filename) ;
 			} else {
-				sprintf(cmd, "cat %s | \"%s/%s\"", tmpfilename, cwd, req->filename) ;
+				sprintf(cmd, "%s %s | \"%s/%s\"", dynamic_cat, tmpfilename, cwd, req->filename) ;
 			}
 		} else { 
 			client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); 
@@ -1095,7 +1096,8 @@ void usage( char *progname ) {
 #ifndef WIN32
 	printf("- TINYWEB_NBPROCESS: number of concurrent processes [10]\n");
 #endif
-	printf("- TINYWEB_CMD: external scripts command []\n");
+	printf("- TINYWEB_CMD: external scripts command [%s]\n",dynamic_shell);
+	printf("- TINYWEB_CAT: external cat command [%s]\n", dynamic_cat);
 	printf("- TINYWEB_AUTH: Basic authent for PUT and DELETE\n");
 	printf("- TINYWEB_DEBUG: unable debug mode\n");
 }
@@ -1109,7 +1111,8 @@ int main(int argc, char** argv) {
     if( getenv("TINYWEB_PORT")!=NULL ) { port = atoi(getenv("TINYWEB_PORT")) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; } }
     if( getenv("TINYWEB_DIR")!=NULL ) { path = getenv("TINYWEB_DIR") ; }
     if( getenv("TINYWEB_NBPROCESS")!=NULL ) { nb_forks=atoi(getenv("TINYWEB_NBPROCESS")); if(nb_forks<0) nb_forks=0;  }
-    if( getenv("TINYWEB_CMD")!=NULL ) { dynamic_shell=(char*)malloc(strlen(getenv("TINYWEB_CMD"))+1);strcpy(dynamic_shell,getenv("TINYWEB_CMD"));strcat(dynamic_shell," "); }
+    if( getenv("TINYWEB_CMD")!=NULL ) { dynamic_shell=(char*)malloc(strlen(getenv("TINYWEB_CMD"))+2);strcpy(dynamic_shell,getenv("TINYWEB_CMD"));strcat(dynamic_shell," "); }
+    if( getenv("TINYWEB_CAT")!=NULL ) { dynamic_cat=(char*)malloc(strlen(getenv("TINYWEB_CAT"))+2);strcpy(dynamic_cat,getenv("TINYWEB_CAT"));strcat(dynamic_cat," "); }
 	    
     if( getenv("TMPDIR")!=NULL ) { strcpy(tmp_dir, getenv("TMPDIR")); }
     else if( getenv("TEMP")!=NULL ) { strcpy(tmp_dir, getenv("TEMP")); }
