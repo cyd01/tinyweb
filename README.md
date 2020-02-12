@@ -15,7 +15,7 @@ Here are the original features:
 * Basic MIME mapping
 * Very basic directory listing
 * Low resource usage
-* sendfile(2)
+* sendfile (Linux only) 
 * Support Accept-Ranges: bytes (for in browser MP4 playing)
 * concurrency by pre-fork
 

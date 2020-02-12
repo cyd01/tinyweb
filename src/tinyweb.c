@@ -665,8 +665,11 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 #endif
 				return 500; break;
 			}
-			//sprintf(cmd, "cat %s |%s \"%s/%s\" 2>&1", tmpfilename, dynamic_shell, cwd, req->filename) ;
-			sprintf(cmd, "cat %s | \"%s/%s\"", tmpfilename, cwd, req->filename) ;
+			if( strlen(dynamic_shell)>0 ) {
+				sprintf(cmd, "cat %s |%s \"%s/%s\" 2>&1", tmpfilename, dynamic_shell, cwd, req->filename) ;
+			} else {
+				sprintf(cmd, "cat %s | \"%s/%s\"", tmpfilename, cwd, req->filename) ;
+			}
 		} else { 
 			client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); 
 #ifdef WIN32
@@ -677,12 +680,17 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 			return 500; 
 		}
 	} else {
-		//sprintf(cmd, "%s \"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
-		sprintf(cmd, "\"%s/%s\"", cwd, req->filename) ;
+		if( strlen(dynamic_shell)>0 ) {
+			sprintf(cmd, "%s \"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
+		} else {
+			sprintf(cmd, "\"%s/%s\"", cwd, req->filename) ;
+		}
 	}
 
 
 #ifdef WIN32
+	for( int i=0; i<strlen(cmd); i++) { if( cmd[i]=='/' ) { cmd[i]='\\' ; } }
+//	for( int i=0; i<strlen(cmd); i++) { if( cmd[i]=='\\' ) { cmd[i]='/' ; } }
 	fp = popen(cmd,"r");
 	printf("running command %s\n",cmd);
 #else
@@ -708,6 +716,7 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 			}
 			writen(out_fd, buf, strlen(buf));
 			while( (nb_read=fread(buf,1,BUF_SIZE,fp))>0 )  {
+				printf(buf);
 				if( writen(out_fd, buf, nb_read)!=nb_read ) break ;
 #ifndef WIN32
 				fsync(out_fd);
