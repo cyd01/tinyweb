@@ -38,6 +38,10 @@
 #define MAXLINE 1024   /* max length of a line */
 #define RIO_BUFSIZE 1024
 
+#ifndef MAX_PATH
+#define MAX_PATH 2048
+#endif
+
 int debug_flag = 0 ; 		/* Debug mode flag */
 
 typedef struct {
@@ -51,9 +55,9 @@ typedef struct {
 typedef struct sockaddr SA;
 
 typedef struct {
+    char filename[MAX_PATH];
     char method[10];
     char uri[512];
-    char filename[512];
     off_t offset;              /* for support Range */
     size_t end;
     size_t length;
@@ -65,6 +69,23 @@ typedef struct {
     size_t bodylen;
     char body[MAXLINE];
 } http_request;
+
+void print_http_request( http_request * r ) {
+	printf("----\n");
+	printf("#%s#\n",r->filename) ;
+	printf("#%s#\n",r->method) ;
+	printf("#%s#\n",r->uri) ;
+	printf("#%d#\n",r->offset) ;
+	printf("#%ld#\n",r->end) ;
+	printf("#%ld#\n",r->length) ;
+	printf("#%s#\n",r->query) ;
+	printf("#%s#\n",r->auth) ;
+	printf("#%s#\n",r->type) ;
+	printf("#%s#\n",r->host) ;
+	printf("#%s#\n",r->vhost) ;
+	printf("#%ld#\n",r->bodylen) ;
+	printf("#%s#\n",r->body) ;
+}
 
 typedef struct {
     const char *extension;
@@ -256,18 +277,21 @@ void format_size(char* buf, struct stat *stat){
 #include <tchar.h>
 #include <stdio.h>
 #define BUFSIZE MAX_PATH
+int dirfd(DIR *dirp) { }
+/*
 DWORD GetFinalPathNameByHandleA(HANDLE hFile,LPSTR  lpszFilePath,DWORD  cchFilePath,DWORD  dwFlags);
 int getfilename(HANDLE hFile, char* filename, int size) {
 	return GetFinalPathNameByHandleA(hFile,filename,size,0) ;
 }
+*/
 DIR *fdopendir(int fd) {
-	char filename[512];
-	getfilename( (void*)_get_osfhandle(fd),filename,512);
+	char filename[MAX_PATH]="";
+//	getfilename( (void*)_get_osfhandle(fd),filename,MAX_PATH);
 	return opendir(filename);
 }
 int openat(int fd, const char *pathname, int flags) {
-	char filename[512];
-	getfilename( (void*)_get_osfhandle(fd),filename,512);
+	char filename[MAX_PATH]="";
+//	getfilename( (void*)_get_osfhandle(fd),filename,MAX_PATH);
 	if( (pathname[0]!='/') && (filename[strlen(filename)-1]!='/') ) { strcat(filename,"/"); }
 	strcat( filename, pathname ) ;
 	return open(filename,flags);
@@ -296,9 +320,10 @@ void handle_directory_redirect(int out_fd, char *filename, char *redirect) {
 	writen(out_fd, buf, strlen(buf));
 }
 
-void handle_directory_request(int out_fd, int dir_fd, char *filename){
+void handle_directory_request(int out_fd, DIR*dir, int dir_fd, char *filename){
     char buf[MAXLINE], m_time[32], size[16];
     struct stat statbuf;
+    if( debug_flag ) { printf("Browsing directory %s\n",filename); }
     sprintf(buf, "HTTP/1.1 200 OK\r\n%s%s%s%s%s%s%s",
             "Expires: 0\r\nContent-Type: text/html\r\n\r\n",
             "<html><head><meta charset=\"utf-8\"><title>directory: ",filename,
@@ -307,14 +332,25 @@ void handle_directory_request(int out_fd, int dir_fd, char *filename){
             "td {padding: 1.5px 6px;}",
             "</style></head><body><table>\n" );
     writen(out_fd, buf, strlen(buf));
-	
-    DIR *d = (DIR*)fdopendir(dir_fd);
+
+    DIR *d ;
+    if( dir==NULL ) {
+	d = (DIR*)fdopendir(dir_fd);
+    } else { 
+	d = dir ;
+	dir_fd = dirfd(d) ;
+    }
     struct dirent *dp;
     int ffd;
     while ((dp = readdir(d)) != NULL){
         if(!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")){
             continue;
         }
+#ifdef WIN32
+	sprintf(buf, "<tr><td><a href=\"/%s/%s\">%s</a></td></tr>\n",
+                    filename,dp->d_name, dp->d_name );
+        writen(out_fd, buf, strlen(buf));
+#else
         if ((ffd = openat(dir_fd, dp->d_name, O_RDONLY)) == -1){
             perror(dp->d_name);
             continue;
@@ -330,6 +366,7 @@ void handle_directory_request(int out_fd, int dir_fd, char *filename){
             writen(out_fd, buf, strlen(buf));
         }
         close(ffd);
+#endif
     }
     sprintf(buf, "</table></body></html>");
     writen(out_fd, buf, strlen(buf));
@@ -419,7 +456,7 @@ void url_decode(char* src, char* dest, int max) {
 
 int parse_request(int fd, http_request *req){
     rio_t rio;
-    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], *pst;
+    char buf[MAXLINE], method[10], uri[MAXLINE], *pst;
     req->offset = 0;
     req->end = 0;              /* default */
     req->query[0] = '\0';
@@ -431,6 +468,7 @@ int parse_request(int fd, http_request *req){
     req->length = 0;
     req->bodylen=0;
     req->body[0] = '\0';
+    req->filename[0] = '\0';
     
     rio_readinitb(&rio, fd);
     rio_readlineb(&rio, buf, MAXLINE); if( (strlen(buf)<=2)||(buf[strlen(buf)-1]!='\n') ) return 0;
@@ -921,8 +959,8 @@ int index_file_found(char *directory) {
 
 int mopen(char *path, char *filename, char *vhost) {
     int ffd = -1 ;
-    char * p ;
-    p = (char*) malloc( strlen(path)+strlen(filename)+strlen(vhost)+10) ;
+    char *p, *f ;
+    p = (char*) malloc( strlen(path)+strlen(filename)+strlen(vhost)+10 ) ;
 
     if( (vhost!=NULL) && (strlen(vhost)>0) ) {
 	sprintf(p,"%s/%s/%s",path,vhost,filename);
@@ -958,7 +996,8 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
 	    return ;
     }
 
-    printf("[%d][%s] request filename: %s/%s\n", getpid(),logt(), req.host, req.filename);
+    printf("[%d][%s] request filename: %s %s/%s\n", getpid(),logt(), req.method, req.host, req.filename);
+    if( !strcmp(req.filename,"_alive") ) { client_error(fd, 200, "OK", "Content-type: text/plain\r\n", "Alive"); }
     
     struct stat sbuf;
     int status = 200, ffd  ;
@@ -967,9 +1006,9 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
 	serve_static_put(fd, &req) ;
     } else if( (ffd=mopen(path,req.filename,req.vhost))>0 ) {
 	if( debug_flag ) { printf("Found file %s\n",req.filename); }
-        fstat(ffd, &sbuf);
-        if(S_ISREG(sbuf.st_mode)){
-            if (req.end == 0){
+	fstat(ffd, &sbuf);
+        if(S_ISREG(sbuf.st_mode)) {
+            if (req.end == 0) {
                 req.end = sbuf.st_size;
             }
             if (req.offset > 0){
@@ -980,7 +1019,7 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
 	    } else {
 		serve_static(fd, ffd, &req, sbuf.st_size, sbuf.st_ctime);
 	    }
-        } else if(S_ISDIR(sbuf.st_mode)){
+        } else if(S_ISDIR(sbuf.st_mode)) {
 	    if( (req.filename[strlen(req.filename)-1]!='/')&&(req.filename[strlen(req.filename)-1]!='.') ) {
 		status = 302;
 		handle_directory_redirect(fd, req.filename, "/");
@@ -989,7 +1028,7 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
 		handle_directory_redirect(fd, req.filename, default_index_file);
 	    } else {
 		status = 200;
-		handle_directory_request(fd, ffd, req.filename);
+		handle_directory_request(fd, NULL, ffd, req.filename);
 	    }
         } else {
             status = 400;
@@ -998,6 +1037,11 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
         }
 	close(ffd);
     } else {
+#ifdef WIN32
+	DIR*dir = opendir(req.filename) ;
+	if( dir!=NULL ) { handle_directory_request(fd, dir, ffd, req.filename); return;}
+#endif
+	if( debug_flag ) { printf("%s is not found\n",req.filename); }
 	status = 404;
         char *msg = "File not found";
         client_error(fd, status, "Not found", NULL, msg);
@@ -1157,7 +1201,7 @@ gcc -o tinyweb tinyweb.c
 gcc -o tinyweb tinyweb.c -DNO_SENDFILE
 
 # MinGW
-gcc -o tinyweb.exe tinyweb.c -DNO_SENDFILE -DWIN32 -lwsock32 /c/windows/system32/kernel32.dll
+gcc -o tinyweb tinyweb.c -DNO_SENDFILE -DWIN32 -lwsock32
 
 echo '<html><head><title>It works!</title></head><body>It works!</body></html>' > index.html
 

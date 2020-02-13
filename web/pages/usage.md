@@ -9,6 +9,7 @@ Configuration variables:
 - TINYWEB_DIR: home directory [.]
 - TINYWEB_PORT: listening port [9999]
 - TINYWEB_CMD: external scripts command []
+- TINYWEB_CAT: external cat command [cat]
 - TINYWEB_AUTH: Basic authent for PUT and DELETE
 - TINYWEB_DEBUG: unable debug mode
 ```
