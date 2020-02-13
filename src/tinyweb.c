@@ -75,7 +75,7 @@ void print_http_request( http_request * r ) {
 	printf("#%s#\n",r->filename) ;
 	printf("#%s#\n",r->method) ;
 	printf("#%s#\n",r->uri) ;
-	printf("#%d#\n",r->offset) ;
+	printf("#%ld#\n",r->offset) ;
 	printf("#%ld#\n",r->end) ;
 	printf("#%ld#\n",r->length) ;
 	printf("#%s#\n",r->query) ;
@@ -665,7 +665,7 @@ echo "SCRIPT_NAME=${SCRIPT_NAME}"
 echo "CONTENT_LENGTH=${CONTENT_LENGTH}"
 echo "CONTENT_TYPE=${CONTENT_TYPE}"
 */
-	char cmd[1024];
+	char cmd[PATH_MAX+50];
 	char cwd[PATH_MAX];
 	char buf[BUF_SIZE];
 	FILE *fp ;
