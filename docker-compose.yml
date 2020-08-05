@@ -33,7 +33,7 @@ services:
         condition: on-failure
 
   tinyweb:
-    image: 10.4.140.56:8701/cyd01/tinyweb
+    image: cyd01/tinyweb
     volumes:
       - tinyweb_data:/www
     networks:
