@@ -76,14 +76,23 @@ void print_http_request( http_request * r ) {
 	printf("#%s#\n",r->method) ;
 	printf("#%s#\n",r->uri) ;
 	printf("#%ld#\n",r->offset) ;
+#if defined __x86_64__
 	printf("#%ld#\n",r->end) ;
 	printf("#%ld#\n",r->length) ;
+#else
+	printf("#%d#\n",r->end) ;
+	printf("#%d#\n",r->length) ;
+#endif
 	printf("#%s#\n",r->query) ;
 	printf("#%s#\n",r->auth) ;
 	printf("#%s#\n",r->type) ;
 	printf("#%s#\n",r->host) ;
 	printf("#%s#\n",r->vhost) ;
+#if defined __x86_64__
 	printf("#%ld#\n",r->bodylen) ;
+#else
+	printf("#%d#\n",r->bodylen) ;
+#endif
 	printf("#%s#\n",r->body) ;
 }
 
@@ -480,7 +489,11 @@ int parse_request(int fd, http_request *req){
         rio_readlineb(&rio, buf, MAXLINE);
         //if(buf[0] == 'R' && buf[1] == 'a' && buf[2] == 'n'){
 	if( stristr(buf,"Range: ")==buf ) {
+#if defined __x86_64__
             sscanf(buf, "Range: bytes=%lu-%lu", &req->offset, &req->end);
+#else
+            sscanf(buf, "Range: bytes=%lu-%u", &req->offset, &req->end);
+#endif
             // Range: [start, end]
             if( req->end != 0) req->end ++;
 	} else if( stristr(buf,"Host: ")==buf ) {
@@ -488,7 +501,11 @@ int parse_request(int fd, http_request *req){
 	    strcpy(req->vhost,req->host);
 	    if( (pst=strstr(req->vhost,":"))!=NULL ) { pst[0]='\0'; }
 	} else if( stristr(buf, "Content-length: ")==buf ) {
+#if defined __x86_64__
 	    sscanf(buf+16, "%lu", &req->length );
+#else
+	    sscanf(buf+16, "%u", &req->length );
+#endif
 	} else if( stristr(buf, "Authorization: ")==buf ) {
 	    sscanf(buf+15, "%[a-zA-Z0-9=+/ ]", &(req->auth[0]) );
 	} else if( stristr(buf, "Content-type: ")==buf ) {
@@ -527,8 +544,13 @@ int parse_request(int fd, http_request *req){
 
 
 void log_access(int status, struct sockaddr_in *c_addr, http_request *req) {
+#if defined __x86_64__
     printf("[%d][%s] %s:%d %d - %s %s/%s (%lu) ? %s\n", getpid(), logt(), inet_ntoa(c_addr->sin_addr),
            ntohs(c_addr->sin_port), status, req->method, req->host, req->filename, req->length, req->query);
+#else
+    printf("[%d][%s] %s:%d %d - %s %s/%s (%u) ? %s\n", getpid(), logt(), inet_ntoa(c_addr->sin_addr),
+           ntohs(c_addr->sin_port), status, req->method, req->host, req->filename, req->length, req->query);
+#endif
 }
 
 void client_error(int fd, int status, char *msg, char *headers, char *longmsg){
@@ -539,8 +561,13 @@ void client_error(int fd, int status, char *msg, char *headers, char *longmsg){
 	sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");
     } else {
 	if( (longmsg!=NULL) && (strlen(longmsg)>0) ){
+#if defined __x86_64__
 	    sprintf(buf + strlen(buf),
                 "Content-length: %lu\r\n\r\n", strlen(longmsg));
+#else
+	    sprintf(buf + strlen(buf),
+                "Content-length: %u\r\n\r\n", strlen(longmsg));
+#endif
 	    sprintf(buf + strlen(buf), "%s", longmsg);
 	} else { sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");}
     }
@@ -577,7 +604,11 @@ int write_file(int fd, http_request *req, char * filename) {
 		size+=n;
 		if( select(fd+1, &fds, 0, 0, &timeout)!=1 ) break;
 	    }
+#if defined __x86_64__
 	    printf("Writing %ld bytes into %s\n",size,req->filename);
+#else
+	    printf("Writing %d bytes into %s\n",size,req->filename);
+#endif
 	    close(put_fd);
 	    return 200;
 	} else {
@@ -665,7 +696,7 @@ echo "SCRIPT_NAME=${SCRIPT_NAME}"
 echo "CONTENT_LENGTH=${CONTENT_LENGTH}"
 echo "CONTENT_TYPE=${CONTENT_TYPE}"
 */
-	char cmd[PATH_MAX+50];
+	char *cmd = NULL;
 	char cwd[PATH_MAX];
 	char buf[BUF_SIZE];
 	FILE *fp ;
@@ -679,13 +710,24 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 	setenv("DOCUMENT_ROOT", cwd, 1);
 	if( strlen(req->auth)>0 ) { setenv("HTTP_AUTHORIZATION", req->auth, 1); }
 	if( strlen(req->host)>0 ) { setenv("HTTP_HOST", req->host, 1); }
+
+    cmd = (char*)malloc(strlen(req->filename)+2);
 	sprintf(cmd, "/%s", req->filename );
 	if( strlen(req->filename)>0 ) { setenv("REQUEST_URI", cmd, 1); }
+    free(cmd); cmd = NULL;
+
+    cmd = (char*)malloc(strlen(cwd)+strlen(req->filename)+2);
 	sprintf(cmd, "%s/%s", cwd, req->filename );
 	setenv("SCRIPT_FILENAME", cmd, 1);
+    free(cmd); cmd = NULL;
+    
 	setenv("SERVER_SOFTWARE", server_software, 1);
 	setenv("CONTENT_TYPE", req->type, 1);
+#if defined __x86_64__
 	sprintf(buf,"%lu",req->length);
+#else
+    sprintf(buf,"%u",req->length);
+#endif
 	setenv("CONTENT_LENGTH", buf, 1);
 	setenv("SCRIPT_NAME", req->uri, 1);
 
@@ -705,8 +747,10 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 				return 500; break;
 			}
 			if( strlen(dynamic_shell)>0 ) {
+                cmd = (char*)malloc(strlen(dynamic_cat)+strlen(tmpfilename)+strlen(dynamic_shell)+strlen(cwd)+strlen(req->filename)+15) ;
 				sprintf(cmd, "%s %s |%s \"%s/%s\" 2>&1", dynamic_cat, tmpfilename, dynamic_shell, cwd, req->filename) ;
 			} else {
+                cmd = (char*)malloc(strlen(dynamic_cat)+strlen(tmpfilename)+strlen(cwd)+strlen(req->filename)+15) ;
 				sprintf(cmd, "%s %s | \"%s/%s\"", dynamic_cat, tmpfilename, cwd, req->filename) ;
 			}
 		} else { 
@@ -720,8 +764,10 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 		}
 	} else {
 		if( strlen(dynamic_shell)>0 ) {
+            cmd = (char*)malloc(strlen(dynamic_shell)+strlen(cwd)+strlen(req->filename)+15) ;
 			sprintf(cmd, "%s \"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
 		} else {
+            cmd = (char*)malloc(strlen(cwd)+strlen(req->filename)+15) ;
 			sprintf(cmd, "\"%s/%s\"", cwd, req->filename) ;
 		}
 	}
@@ -768,6 +814,11 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
 		ret = 500 ;
 	}
 	if( tmpfilename!=NULL ) { unlink(tmpfilename) ;}
+
+    if( cmd!=NULL ) {
+        free(cmd) ; 
+        cmd=NULL ; 
+    }
 	
 #ifdef WIN32
 	pclose(fp) ;
@@ -801,8 +852,13 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
     long size=0;
     if (req->offset > 0){
         sprintf(buf, "HTTP/1.1 206 Partial\r\n");
+#if defined __x86_64__
         sprintf(buf + strlen(buf), "Content-Range: bytes %lu-%lu/%lu\r\n",
                 req->offset, req->end, total_size);
+#else
+        sprintf(buf + strlen(buf), "Content-Range: bytes %lu-%u/%u\r\n",
+                req->offset, req->end, total_size);
+#endif
     } else {
         sprintf(buf, "HTTP/1.1 200 OK\r\nAccept-Ranges: bytes\r\n");
     }
@@ -1192,17 +1248,3 @@ if( WSAStartup(MAKEWORD(2,2), &wsaData) ) {
     printf("\n");
     return server_main( path, port ) ;
 }
-
-/*
-# Linux
-gcc -o tinyweb tinyweb.c
-
-# Cygwin
-gcc -o tinyweb tinyweb.c -DNO_SENDFILE
-
-# MinGW
-gcc -o tinyweb tinyweb.c -DNO_SENDFILE -DWIN32 -lwsock32
-
-echo '<html><head><title>It works!</title></head><body>It works!</body></html>' > index.html
-
-*/
