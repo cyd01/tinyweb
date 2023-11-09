@@ -1,11 +1,22 @@
-FROM alpine:3.7
-COPY Dockerfile /etc/Dockerfile
-COPY tinyweb /bin/tinyweb
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-RUN chmod +x /bin/tinyweb
-ENTRYPOINT ["/entrypoint.sh"]
+FROM    ubuntu as builder
 
-# docker build . -t cyd01/tinyweb
+ARG     DEBIAN_FRONTEND=noninteractive
+RUN     apt-get update && apt-get install --yes build-essential file gcc-multilib
+COPY    Dockerfile /etc/Dockerfile
+RUN     touch /etc/Dockerfile
 
-# docker run -d --rm --name tinyweb -e "TINYWEB_PORT=9909" -p 80:9909 -v $(pwd):/www cyd01/tinyweb
+COPY    src/tinyweb.c /tmp/tinyweb.c
+RUN     gcc -m32 --static -o /usr/local/bin/tinyweb /tmp/tinyweb.c && /usr/local/bin/tinyweb -h
+
+FROM    alpine
+COPY    --from=builder /usr/local/bin/tinyweb /usr/local/bin/tinyweb
+RUN     chmod +x /usr/local/bin/tinyweb ; /usr/local/bin/tinyweb -h
+
+COPY    entrypoint.sh /entrypoint.sh
+RUN     chmod +x /entrypoint.sh
+RUN     echo '<html><head><title>It works!</title></head><body>It works!</body></html>' > /www/index.html
+
+EXPOSE  80
+WORKDIR /www
+
+ENTRYPOINT [ "/entrypoint.sh" ]
