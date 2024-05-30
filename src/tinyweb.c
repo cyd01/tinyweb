@@ -42,7 +42,7 @@
 #define MAX_PATH 2048
 #endif
 
-int debug_flag = 0 ; 		/* Debug mode flag */
+int debug_flag = 0 ;            /* Debug mode flag */
 
 typedef struct {
     int rio_fd;                 /* descriptor for this buf */
@@ -71,29 +71,29 @@ typedef struct {
 } http_request;
 
 void print_http_request( http_request * r ) {
-	printf("----\n");
-	printf("#%s#\n",r->filename) ;
-	printf("#%s#\n",r->method) ;
-	printf("#%s#\n",r->uri) ;
-	printf("#%ld#\n",r->offset) ;
+    printf("----\n");
+    printf("#%s#\n",r->filename) ;
+    printf("#%s#\n",r->method) ;
+    printf("#%s#\n",r->uri) ;
+    printf("#%ld#\n",r->offset) ;
 #if defined __x86_64__
-	printf("#%ld#\n",r->end) ;
-	printf("#%ld#\n",r->length) ;
+    printf("#%ld#\n",r->end) ;
+    printf("#%ld#\n",r->length) ;
 #else
-	printf("#%d#\n",r->end) ;
-	printf("#%d#\n",r->length) ;
+    printf("#%d#\n",r->end) ;
+    printf("#%d#\n",r->length) ;
 #endif
-	printf("#%s#\n",r->query) ;
-	printf("#%s#\n",r->auth) ;
-	printf("#%s#\n",r->type) ;
-	printf("#%s#\n",r->host) ;
-	printf("#%s#\n",r->vhost) ;
+    printf("#%s#\n",r->query) ;
+    printf("#%s#\n",r->auth) ;
+    printf("#%s#\n",r->type) ;
+    printf("#%s#\n",r->host) ;
+    printf("#%s#\n",r->vhost) ;
 #if defined __x86_64__
-	printf("#%ld#\n",r->bodylen) ;
+    printf("#%ld#\n",r->bodylen) ;
 #else
-	printf("#%d#\n",r->bodylen) ;
+    printf("#%d#\n",r->bodylen) ;
 #endif
-	printf("#%s#\n",r->body) ;
+    printf("#%s#\n",r->body) ;
 }
 
 typedef struct {
@@ -141,9 +141,9 @@ char *dynamic_cat = "cat" ;
 
 char logtime[50] = "" ;
 char * logt() {
-	time_t t = time(NULL);
-	strftime(logtime,sizeof(logtime),"%a, %d %b %Y %T %z",localtime(&t));
-	return logtime;
+    time_t t = time(NULL);
+    strftime(logtime,sizeof(logtime),"%a, %d %b %Y %T %z",localtime(&t));
+    return logtime;
 }
 
 void rio_readinitb(rio_t *rp, int fd){
@@ -159,7 +159,7 @@ ssize_t writen(int fd, void *usrbuf, size_t n){
 
     while (nleft > 0){
 #ifdef WIN32
-	if ((nwritten = send(fd, bufp, nleft, 0)) <= 0){
+        if ((nwritten = send(fd, bufp, nleft, 0)) <= 0){
 #else
         if ((nwritten = write(fd, bufp, nleft)) <= 0){
 #endif
@@ -188,13 +188,13 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n){
     int cnt,i;
     while (rp->rio_cnt <= 0){  /* refill if buf is empty */
 #ifdef WIN32
-	rp->rio_cnt = recv(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf), 0);
+        rp->rio_cnt = recv(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf), 0);
 #else
         rp->rio_cnt = read(rp->rio_fd, rp->rio_buf, sizeof(rp->rio_buf));
 #endif
-	if( debug_flag && (rp->rio_cnt>0) ) { for(i=0;i<rp->rio_cnt;i++) printf( "%c", rp->rio_buf[i] ) ; }
+        if( debug_flag && (rp->rio_cnt>0) ) { for(i=0;i<rp->rio_cnt;i++) printf( "%c", rp->rio_buf[i] ) ; }
         if (rp->rio_cnt < 0) {
-	    //if (errno == EBADF ) printf("Bad file descriptor !\n");
+            //if (errno == EBADF ) printf("Bad file descriptor !\n");
             if (errno != EINTR) /* interrupted by sig handler return */
                 return -1;
         }
@@ -202,8 +202,8 @@ static ssize_t rio_read(rio_t *rp, char *usrbuf, size_t n){
             return 0;
         else {
             rp->rio_bufptr = rp->rio_buf; /* reset buffer ptr */
-		//printf("==>%s<==\n",rp->rio_buf);
-	}
+            //printf("==>%s<==\n",rp->rio_buf);
+        }
     }
 
     /* Copy min(n, rp->rio_cnt) bytes from internal buf to user buf */
@@ -251,15 +251,15 @@ char* stristr( const char* str1, const char* str2 ) {
         if( tolower( (unsigned char)*p1 ) == tolower( (unsigned char)*p2 ) ) {
             if( r == 0 ) { r = p1 ; }
             p2++ ;
-	} else {
-	    p2 = str2 ;
+        } else {
+            p2 = str2 ;
             if( r != 0 ) { p1 = r + 1 ; }
-	    if( tolower( (unsigned char)*p1 ) == tolower( (unsigned char)*p2 ) ) {
+            if( tolower( (unsigned char)*p1 ) == tolower( (unsigned char)*p2 ) ) {
                 r = p1 ;
                 p2++ ;
-	    } else { r = 0 ; }
-	}
-	p1++ ;
+            } else { r = 0 ; }
+        }
+        p1++ ;
     }
     return *p2 == 0 ? (char*)r : 0 ;
 }
@@ -294,39 +294,39 @@ int getfilename(HANDLE hFile, char* filename, int size) {
 }
 */
 DIR *fdopendir(int fd) {
-	char filename[MAX_PATH]="";
-//	getfilename( (void*)_get_osfhandle(fd),filename,MAX_PATH);
-	return opendir(filename);
+    char filename[MAX_PATH]="";
+//    getfilename( (void*)_get_osfhandle(fd),filename,MAX_PATH);
+    return opendir(filename);
 }
 int openat(int fd, const char *pathname, int flags) {
-	char filename[MAX_PATH]="";
-//	getfilename( (void*)_get_osfhandle(fd),filename,MAX_PATH);
-	if( (pathname[0]!='/') && (filename[strlen(filename)-1]!='/') ) { strcat(filename,"/"); }
-	strcat( filename, pathname ) ;
-	return open(filename,flags);
+    char filename[MAX_PATH]="";
+//    getfilename( (void*)_get_osfhandle(fd),filename,MAX_PATH);
+    if( (pathname[0]!='/') && (filename[strlen(filename)-1]!='/') ) { strcat(filename,"/"); }
+    strcat( filename, pathname ) ;
+    return open(filename,flags);
 }
 #ifndef NO_ENV
 int setenv(const char *name, const char *value, int overwrite) {
-	char *buf;
-	int ret;
-	buf = (char*)malloc( strlen(name)+strlen(value)+2 ) ;
-	sprintf( buf, "%s=%s", name, value ) ;
-	ret = _putenv( buf ) ;
-	free( buf ) ;
-	return ret ;
+    char *buf;
+    int ret;
+    buf = (char*)malloc( strlen(name)+strlen(value)+2 ) ;
+    sprintf( buf, "%s=%s", name, value ) ;
+    ret = _putenv( buf ) ;
+    free( buf ) ;
+    return ret ;
 }
 int unsetenv(const char *name) { return _putenv( name ) ; }
 #endif
 #endif
 
 void handle_directory_redirect(int out_fd, char *filename, char *redirect) {
-	char buf[MAXLINE];
-	sprintf(buf, "HTTP/1.1 302 Found\r\nLocation: ");
-	if( (filename[0]!='.')&&(filename[0]!='/') ) { strcat(buf,"/" ); }
-	if( strcmp(filename,".") ) { strcat(buf, filename); }
-	strcat(buf, redirect);
-	strcat(buf, "\r\n\r\n");
-	writen(out_fd, buf, strlen(buf));
+    char buf[MAXLINE];
+    sprintf(buf, "HTTP/1.1 302 Found\r\nLocation: ");
+    if( (filename[0]!='.')&&(filename[0]!='/') ) { strcat(buf,"/" ); }
+    if( strcmp(filename,".") ) { strcat(buf, filename); }
+    strcat(buf, redirect);
+    strcat(buf, "\r\n\r\n");
+    writen(out_fd, buf, strlen(buf));
 }
 
 void handle_directory_request(int out_fd, DIR*dir, int dir_fd, char *filename){
@@ -336,7 +336,7 @@ void handle_directory_request(int out_fd, DIR*dir, int dir_fd, char *filename){
     sprintf(buf, "HTTP/1.1 200 OK\r\n%s%s%s%s%s%s%s",
             "Expires: 0\r\nContent-Type: text/html\r\n\r\n",
             "<html><head><meta charset=\"utf-8\"><title>directory: ",filename,
-	    "</title><style>", 
+            "</title><style>", 
             "body{font-family: monospace; font-size: 13px;}",
             "td {padding: 1.5px 6px;}",
             "</style></head><body><table>\n" );
@@ -344,19 +344,19 @@ void handle_directory_request(int out_fd, DIR*dir, int dir_fd, char *filename){
 
     DIR *d ;
     if( dir==NULL ) {
-	d = (DIR*)fdopendir(dir_fd);
+        d = (DIR*)fdopendir(dir_fd);
     } else { 
-	d = dir ;
-	dir_fd = dirfd(d) ;
+        d = dir ;
+        dir_fd = dirfd(d) ;
     }
     struct dirent *dp;
     int ffd;
-    while ((dp = readdir(d)) != NULL){
-        if(!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")){
+    while ((dp = readdir(d)) != NULL) {
+        if(!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, "..")) {
             continue;
         }
 #ifdef WIN32
-	sprintf(buf, "<tr><td><a href=\"/%s/%s\">%s</a></td></tr>\n",
+        sprintf(buf, "<tr><td><a href=\"/%s/%s\">%s</a></td></tr>\n",
                     filename,dp->d_name, dp->d_name );
         writen(out_fd, buf, strlen(buf));
 #else
@@ -488,7 +488,7 @@ int parse_request(int fd, http_request *req){
     while(buf[0] != '\n' && buf[1] != '\n') { /* \n || \r\n */
         rio_readlineb(&rio, buf, MAXLINE);
         //if(buf[0] == 'R' && buf[1] == 'a' && buf[2] == 'n'){
-	if( stristr(buf,"Range: ")==buf ) {
+        if( stristr(buf,"Range: ")==buf ) {
 #if defined __x86_64__
             sscanf(buf, "Range: bytes=%lu-%lu", &req->offset, &req->end);
 #else
@@ -496,27 +496,27 @@ int parse_request(int fd, http_request *req){
 #endif
             // Range: [start, end]
             if( req->end != 0) req->end ++;
-	} else if( stristr(buf,"Host: ")==buf ) {
-	    sscanf(buf+6, "%s", &(req->host[0]) );
-	    strcpy(req->vhost,req->host);
-	    if( (pst=strstr(req->vhost,":"))!=NULL ) { pst[0]='\0'; }
-	} else if( stristr(buf, "Content-length: ")==buf ) {
+        } else if( stristr(buf,"Host: ")==buf ) {
+            sscanf(buf+6, "%s", &(req->host[0]) );
+            strcpy(req->vhost,req->host);
+            if( (pst=strstr(req->vhost,":"))!=NULL ) { pst[0]='\0'; }
+        } else if( stristr(buf, "Content-length: ")==buf ) {
 #if defined __x86_64__
-	    sscanf(buf+16, "%lu", &req->length );
+            sscanf(buf+16, "%lu", &req->length );
 #else
-	    sscanf(buf+16, "%u", &req->length );
+            sscanf(buf+16, "%u", &req->length );
 #endif
-	} else if( stristr(buf, "Authorization: ")==buf ) {
-	    sscanf(buf+15, "%[a-zA-Z0-9=+/ ]", &(req->auth[0]) );
-	} else if( stristr(buf, "Content-type: ")==buf ) {
-	    sscanf(buf+14, "%s", &(req->type[0]) );
-	} else if( stristr(buf, "Expect: 100-continue")==buf ) {
-	  writen(fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
-	}
+        } else if( stristr(buf, "Authorization: ")==buf ) {
+            sscanf(buf+15, "%[a-zA-Z0-9=+/ ]", &(req->auth[0]) );
+        } else if( stristr(buf, "Content-type: ")==buf ) {
+            sscanf(buf+14, "%s", &(req->type[0]) );
+        } else if( stristr(buf, "Expect: 100-continue")==buf ) {
+          writen(fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
+        }
     }
     if( rio.rio_cnt>0 ) {
-	    req->bodylen=rio.rio_cnt;
-	    memcpy(req->body,rio.rio_bufptr,rio.rio_cnt);
+        req->bodylen=rio.rio_cnt;
+        memcpy(req->body,rio.rio_bufptr,rio.rio_cnt);
     }
     if( uri[0]!='/' ) { uri[0]='/'; url_decode(uri, (req->uri)+1, MAXLINE); } 
     else { url_decode(uri, req->uri, MAXLINE); }
@@ -529,9 +529,9 @@ int parse_request(int fd, http_request *req){
         if (length == 0){
             filename = ".";
         } else {
-	    for (i = 0; i < length; ++ i) {
+            for (i = 0; i < length; ++ i) {
                 if (filename[i] == '?') {
-		    url_decode(filename+i+1 , req->query, MAXLINE);
+                    url_decode(filename+i+1 , req->query, MAXLINE);
                     filename[i] = '\0';
                     break;
                 }
@@ -558,28 +558,28 @@ void client_error(int fd, int status, char *msg, char *headers, char *longmsg){
     sprintf(buf, "HTTP/1.1 %d %s\r\n", status, msg);
     if(headers!=NULL) if(strlen(headers)>0) { sprintf(buf + strlen(buf), "%s", headers); }
     if( status==204 ) {
-	sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");
+        sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");
     } else {
-	if( (longmsg!=NULL) && (strlen(longmsg)>0) ){
+        if( (longmsg!=NULL) && (strlen(longmsg)>0) ){
 #if defined __x86_64__
-	    sprintf(buf + strlen(buf),
+            sprintf(buf + strlen(buf),
                 "Content-length: %lu\r\n\r\n", strlen(longmsg));
 #else
-	    sprintf(buf + strlen(buf),
+            sprintf(buf + strlen(buf),
                 "Content-length: %u\r\n\r\n", strlen(longmsg));
 #endif
-	    sprintf(buf + strlen(buf), "%s", longmsg);
-	} else { sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");}
+            sprintf(buf + strlen(buf), "%s", longmsg);
+        } else { sprintf(buf + strlen(buf), "Content-length: 0\r\n\r\n");}
     }
     writen(fd, buf, strlen(buf));
 }
 
 char *psttemp=NULL;
 char * mmktemp(char *template) {
-	if(psttemp!=NULL) { free(psttemp); } psttemp=NULL;
-	psttemp=(char*)malloc(256);psttemp[0]='\0';
-	sprintf(psttemp,"%s/%s%ld",tmp_dir,template,random());
-	return psttemp;
+    if(psttemp!=NULL) { free(psttemp); } psttemp=NULL;
+    psttemp=(char*)malloc(256);psttemp[0]='\0';
+    sprintf(psttemp,"%s/%s%ld",tmp_dir,template,random());
+    return psttemp;
 }
 
 int write_file(int fd, http_request *req, char * filename) {
@@ -587,35 +587,35 @@ int write_file(int fd, http_request *req, char * filename) {
     int put_fd, n;
     ssize_t size=0;
     if( (put_fd = open(filename, O_CREAT|O_WRONLY|O_TRUNC, S_IRUSR|S_IWUSR ))==-1 ) {
-	return 500;
+        return 500;
     } else {
-	if( req->bodylen>0 ) { write(put_fd,req->body,req->bodylen) ; } /* Is there some data into buffer */
-	fd_set fds;
-	struct timeval timeout; timeout.tv_sec=2; timeout.tv_usec=0;
-	FD_ZERO(&fds);
-	FD_SET(fd, &fds);
-	if( select(fd+1, &fds, 0, 0, &timeout)==1 ) { /* there is data available into socket */
+        if( req->bodylen>0 ) { write(put_fd,req->body,req->bodylen) ; } /* Is there some data into buffer */
+        fd_set fds;
+        struct timeval timeout; timeout.tv_sec=2; timeout.tv_usec=0;
+        FD_ZERO(&fds);
+        FD_SET(fd, &fds);
+        if( select(fd+1, &fds, 0, 0, &timeout)==1 ) { /* there is data available into socket */
 #ifdef WIN32
-	    while( (n=recv(fd,buf,512,0))>0 ) {
+            while( (n=recv(fd,buf,512,0))>0 ) {
 #else
-	    while( (n=read(fd,buf,512))>0 ) {
+            while( (n=read(fd,buf,512))>0 ) {
 #endif
-		write(put_fd,buf,n);
-		size+=n;
-		if( select(fd+1, &fds, 0, 0, &timeout)!=1 ) break;
-	    }
+                write(put_fd,buf,n);
+                size+=n;
+                if( select(fd+1, &fds, 0, 0, &timeout)!=1 ) break;
+            }
 #if defined __x86_64__
-	    printf("Writing %ld bytes into %s\n",size,req->filename);
+            printf("Writing %ld bytes into %s\n",size,req->filename);
 #else
-	    printf("Writing %d bytes into %s\n",size,req->filename);
+            printf("Writing %d bytes into %s\n",size,req->filename);
 #endif
-	    close(put_fd);
-	    return 200;
-	} else {
-	    close(put_fd);
-	    return 400;
-	}
-	close(put_fd);
+            close(put_fd);
+            return 200;
+        } else {
+            close(put_fd);
+            return 400;
+        }
+        close(put_fd);
     }
     return 500;
 }
@@ -629,7 +629,7 @@ FILE * popen2(const char * command, const char * type, int * pid) {
     pipe(fd);
 
     if((child_pid = fork()) == -1) {
-	perror("fork");
+        perror("fork");
         exit(1);
     }
 
@@ -644,7 +644,7 @@ FILE * popen2(const char * command, const char * type, int * pid) {
         }
         setpgid(child_pid, child_pid); //Needed so negative PIDs can kill children of /bin/sh
         //execl("/bin/sh", "/bin/sh", "-c", command.c_str(), NULL);
-	execl("/bin/sh", "/bin/sh", "-c", command, "2>&1", NULL);
+        execl("/bin/sh", "/bin/sh", "-c", command, "2>&1", NULL);
         exit(0);
     } else {
         if (type == "r") {
@@ -696,124 +696,123 @@ echo "SCRIPT_NAME=${SCRIPT_NAME}"
 echo "CONTENT_LENGTH=${CONTENT_LENGTH}"
 echo "CONTENT_TYPE=${CONTENT_TYPE}"
 */
-	char *cmd = NULL;
-	char cwd[PATH_MAX];
-	char buf[BUF_SIZE];
-	FILE *fp ;
-	int ret = 200 ;
-	int pid;
-	
-	getcwd(cwd, sizeof(cwd));
-	
-	if( strlen(req->query)>0 ) { setenv("QUERY_STRING", req->query, 1); }
-	if( strlen(req->method)>0 ) { setenv("REQUEST_METHOD", req->method, 1); }
-	setenv("DOCUMENT_ROOT", cwd, 1);
-	if( strlen(req->auth)>0 ) { setenv("HTTP_AUTHORIZATION", req->auth, 1); }
-	if( strlen(req->host)>0 ) { setenv("HTTP_HOST", req->host, 1); }
+    char *cmd = NULL;
+    char cwd[PATH_MAX];
+    char buf[BUF_SIZE];
+    FILE *fp ;
+    int ret = 200 ;
+    int pid;
+    
+    getcwd(cwd, sizeof(cwd));
+
+    if( strlen(req->query)>0 ) { setenv("QUERY_STRING", req->query, 1); }
+    if( strlen(req->method)>0 ) { setenv("REQUEST_METHOD", req->method, 1); }
+    setenv("DOCUMENT_ROOT", cwd, 1);
+    if( strlen(req->auth)>0 ) { setenv("HTTP_AUTHORIZATION", req->auth, 1); }
+    if( strlen(req->host)>0 ) { setenv("HTTP_HOST", req->host, 1); }
 
     cmd = (char*)malloc(strlen(req->filename)+2);
-	sprintf(cmd, "/%s", req->filename );
-	if( strlen(req->filename)>0 ) { setenv("REQUEST_URI", cmd, 1); }
-    free(cmd); cmd = NULL;
-
+    sprintf(cmd, "/%s", req->filename );
+    if( strlen(req->filename)>0 ) { setenv("REQUEST_URI", cmd, 1); }
+    free(cmd); cmd = NULL;    
     cmd = (char*)malloc(strlen(cwd)+strlen(req->filename)+2);
-	sprintf(cmd, "%s/%s", cwd, req->filename );
-	setenv("SCRIPT_FILENAME", cmd, 1);
+    sprintf(cmd, "%s/%s", cwd, req->filename );
+    setenv("SCRIPT_FILENAME", cmd, 1);
     free(cmd); cmd = NULL;
     
-	setenv("SERVER_SOFTWARE", server_software, 1);
-	setenv("CONTENT_TYPE", req->type, 1);
+    setenv("SERVER_SOFTWARE", server_software, 1);
+    setenv("CONTENT_TYPE", req->type, 1);
 #if defined __x86_64__
-	sprintf(buf,"%lu",req->length);
+    sprintf(buf,"%lu",req->length);
 #else
     sprintf(buf,"%u",req->length);
 #endif
-	setenv("CONTENT_LENGTH", buf, 1);
-	setenv("SCRIPT_NAME", req->uri, 1);
+    setenv("CONTENT_LENGTH", buf, 1);
+    setenv("SCRIPT_NAME", req->uri, 1);
 
-	char * tmpfilename=NULL;
-	if( !strcmp(req->method,"POST") && (req->bodylen>0) ) {
-		//tmpfilename = tmpnam(NULL) ;
-		tmpfilename = mmktemp("tinyweb") ;
-		if( tmpfilename!=NULL ) {
-			int r = write_file(out_fd, req, tmpfilename);
-			switch(r) {
-				case 500: client_error(out_fd, 500, "Internal server error", NULL, "Unable to create temporary file.");
+    char * tmpfilename=NULL;
+    if( !strcmp(req->method,"POST") && (req->bodylen>0) ) {
+        //tmpfilename = tmpnam(NULL) ;
+        tmpfilename = mmktemp("tinyweb") ;
+        if( tmpfilename!=NULL ) {
+            int r = write_file(out_fd, req, tmpfilename);
+            switch(r) {
+                case 500: client_error(out_fd, 500, "Internal server error", NULL, "Unable to create temporary file.");
 #ifdef WIN32
-				closesocket(out_fd);
+                closesocket(out_fd);
 #else
-				close(out_fd); 
+                close(out_fd); 
 #endif
-				return 500; break;
+                return 500; break;
 			}
-			if( strlen(dynamic_shell)>0 ) {
+            if( strlen(dynamic_shell)>0 ) {
                 cmd = (char*)malloc(strlen(dynamic_cat)+strlen(tmpfilename)+strlen(dynamic_shell)+strlen(cwd)+strlen(req->filename)+15) ;
-				sprintf(cmd, "%s %s |%s \"%s/%s\" 2>&1", dynamic_cat, tmpfilename, dynamic_shell, cwd, req->filename) ;
-			} else {
+                sprintf(cmd, "%s %s |%s \"%s/%s\" 2>&1", dynamic_cat, tmpfilename, dynamic_shell, cwd, req->filename) ;
+            } else {
                 cmd = (char*)malloc(strlen(dynamic_cat)+strlen(tmpfilename)+strlen(cwd)+strlen(req->filename)+15) ;
-				sprintf(cmd, "%s %s | \"%s/%s\"", dynamic_cat, tmpfilename, cwd, req->filename) ;
-			}
-		} else { 
-			client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); 
+                sprintf(cmd, "%s %s | \"%s/%s\"", dynamic_cat, tmpfilename, cwd, req->filename) ;
+            }
+        } else { 
+            client_error(out_fd, 500, "Internal server error", NULL, "Unable to get temporary filename."); 
 #ifdef WIN32
-			closesocket(out_fd);
+            closesocket(out_fd);
 #else
-			close(out_fd);
+            close(out_fd);
 #endif
-			return 500; 
-		}
-	} else {
-		if( strlen(dynamic_shell)>0 ) {
+            return 500; 
+        }
+    } else {
+        if( strlen(dynamic_shell)>0 ) {
             cmd = (char*)malloc(strlen(dynamic_shell)+strlen(cwd)+strlen(req->filename)+15) ;
-			sprintf(cmd, "%s \"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
-		} else {
+            sprintf(cmd, "%s \"%s/%s\" 2>&1", dynamic_shell, cwd, req->filename) ;
+        } else {
             cmd = (char*)malloc(strlen(cwd)+strlen(req->filename)+15) ;
-			sprintf(cmd, "\"%s/%s\"", cwd, req->filename) ;
-		}
-	}
+            sprintf(cmd, "\"%s/%s\"", cwd, req->filename) ;
+        }
+    }
 
 
 #ifdef WIN32
-	for( int i=0; i<strlen(cmd); i++) { if( cmd[i]=='/' ) { cmd[i]='\\' ; } }
-//	for( int i=0; i<strlen(cmd); i++) { if( cmd[i]=='\\' ) { cmd[i]='/' ; } }
-	fp = popen(cmd,"r");
-	printf("running command %s\n",cmd);
+    for( int i=0; i<strlen(cmd); i++) { if( cmd[i]=='/' ) { cmd[i]='\\' ; } }
+//    for( int i=0; i<strlen(cmd); i++) { if( cmd[i]=='\\' ) { cmd[i]='/' ; } }
+    fp = popen(cmd,"r");
+    printf("running command %s\n",cmd);
 #else
-	fp = popen2(cmd,"r",&pid) ; printf("starting process %d\n",pid);
-	printf("running command [/bin/sh -c] %s\n",cmd);
+    fp = popen2(cmd,"r",&pid) ; printf("starting process %d\n",pid);
+    printf("running command [/bin/sh -c] %s\n",cmd);
 #endif
-	
-	int nb_read;
-	if( fp!=NULL ) {
-		if( !fgets(buf, BUF_SIZE, fp) ) {
-			strcpy(buf,"HTTP/1.1 500 Internal server error\r\n"); 
-			writen(out_fd, buf, strlen(buf));
-			ret = 500 ;
-		} else {
-			if( stristr(buf,"Status:")==buf ) {
-				writen(out_fd, "HTTP/1.1 ", 9);
-				int i=8;
-				while( buf[i]==' ' ) { i++; }
-				writen(out_fd, buf+i, strlen(buf+i));
-				ret = atoi(buf+i);
-			} else {
-				strcpy(buf,"HTTP/1.1 200 OK\r\n"); 
-			}
-			writen(out_fd, buf, strlen(buf));
-			while( (nb_read=fread(buf,1,BUF_SIZE,fp))>0 )  {
-				if( writen(out_fd, buf, nb_read)!=nb_read ) break ;
+
+    int nb_read;
+    if( fp!=NULL ) {
+        if( !fgets(buf, BUF_SIZE, fp) ) {
+            strcpy(buf,"HTTP/1.1 500 Internal server error\r\n"); 
+            writen(out_fd, buf, strlen(buf));
+            ret = 500 ;
+        } else {
+            if( stristr(buf,"Status:")==buf ) {
+                writen(out_fd, "HTTP/1.1 ", 9);
+                int i=8;
+                while( buf[i]==' ' ) { i++; }
+                writen(out_fd, buf+i, strlen(buf+i));
+                ret = atoi(buf+i);
+            } else {
+                strcpy(buf,"HTTP/1.1 200 OK\r\n"); 
+            }
+            writen(out_fd, buf, strlen(buf));
+            while( (nb_read=fread(buf,1,BUF_SIZE,fp))>0 )  {
+                if( writen(out_fd, buf, nb_read)!=nb_read ) break ;
 #ifndef WIN32
-				fsync(out_fd);
+                fsync(out_fd);
 #endif
-				if( nb_read!=BUF_SIZE ) break;
-			}
-		}
-	} else {
-		strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nInternal Server Error");
-		writen(out_fd, buf, strlen(buf));
-		ret = 500 ;
-	}
-	if( tmpfilename!=NULL ) { unlink(tmpfilename) ;}
+                if( nb_read!=BUF_SIZE ) break;
+            }
+        }
+    } else {
+        strcpy(buf,"HTTP/1.1 500 Internal Server Error\r\n\r\nInternal Server Error");
+        writen(out_fd, buf, strlen(buf));
+        ret = 500 ;
+    }
+    if( tmpfilename!=NULL ) { unlink(tmpfilename) ;}
 
     if( cmd!=NULL ) {
         free(cmd) ; 
@@ -821,28 +820,28 @@ echo "CONTENT_TYPE=${CONTENT_TYPE}"
     }
 	
 #ifdef WIN32
-	pclose(fp) ;
+    pclose(fp) ;
 #else
-	printf("killing process %d\n",pid) ; pclose2(fp,pid) ;
+    printf("killing process %d\n",pid) ; pclose2(fp,pid) ;
 #endif
-	
-	unsetenv("QUERY_STRING");
-	unsetenv("REQUEST_METHOD");
-	unsetenv("DOCUMENT_ROOT");
-	unsetenv("HTTP_AUTHORIZATION");
-	unsetenv("HTTP_HOST");
-	unsetenv("REQUEST_URI");
-	unsetenv("SCRIPT_FILENAME");
-	unsetenv("SERVER_SOFTWARE");
-	unsetenv("CONTENT_TYPE");
-	unsetenv("CONTENT_LENGTH");
-	unsetenv("SCRIPT_NAME");
+
+    unsetenv("QUERY_STRING");
+    unsetenv("REQUEST_METHOD");
+    unsetenv("DOCUMENT_ROOT");
+    unsetenv("HTTP_AUTHORIZATION");
+    unsetenv("HTTP_HOST");
+    unsetenv("REQUEST_URI");
+    unsetenv("SCRIPT_FILENAME");
+    unsetenv("SERVER_SOFTWARE");
+    unsetenv("CONTENT_TYPE");
+    unsetenv("CONTENT_LENGTH");
+    unsetenv("SCRIPT_NAME");
 #ifdef WIN32
-	closesocket(out_fd);
+    closesocket(out_fd);
 #else
-	close(out_fd);
+    close(out_fd);
 #endif
-	return ret ;
+    return ret ;
 }
 
 void serve_static_get(int out_fd, int in_fd, http_request *req,
@@ -872,9 +871,9 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
     
     expiration = get_expiration(req->filename);
     if( expiration>0 ) {
-	    sprintf(buf + strlen(buf), "Cache-Control: public, max-age=%d\r\n",60*expiration);
+        sprintf(buf + strlen(buf), "Cache-Control: public, max-age=%d\r\n",60*expiration);
     } else {
-	sprintf(buf + strlen(buf), "Cache-Control: no-cache\r\nExpires: 0\r\n");
+        sprintf(buf + strlen(buf), "Cache-Control: no-cache\r\nExpires: 0\r\n");
     }
     // sprintf(buf + strlen(buf), "Cache-Control: public, max-age=315360000\r\nExpires: Thu, 31 Dec 2037 23:55:55 GMT\r\n");
 
@@ -882,135 +881,134 @@ void serve_static_get(int out_fd, int in_fd, http_request *req,
             get_mime_type(req->filename));
 
     if( strcmp(req->method,"HEAD") ) {
-	sprintf(buf + strlen(buf), "Content-length: %lu\r\n\r\n",
+        sprintf(buf + strlen(buf), "Content-length: %lu\r\n\r\n",
             req->end - req->offset);
 
-	writen(out_fd, buf, strlen(buf));
-	off_t offset = req->offset; /* copy */
-	while(offset < req->end){
+        writen(out_fd, buf, strlen(buf));
+        off_t offset = req->offset; /* copy */
+        while(offset < req->end){
 #ifndef NO_SENDFILE
-		if(sendfile(out_fd, in_fd, &offset, req->end - req->offset) <= 0) {
-			break;
-		}
+            if(sendfile(out_fd, in_fd, &offset, req->end - req->offset) <= 0) {
+                break;
+            }
 #else
-		int n;
+            int n
 
-		if( offset>0 ) {
-			if( (int)(offset/256) > 0 ) for( i=0 ; i<(int)(offset/256) ; i++ ) { 
-				if( read(in_fd,buf,256)<0 ) { client_error(out_fd, 500, "Internal server error", "", "Bad offset") ; close(out_fd) ; return ; }
-			}
-			if( (offset%256)>0 ) { read(in_fd,buf,offset%256) ; }
-		}
-		while( (n=read(in_fd,buf,256))>0 ) {
+            if( offset>0 ) {
+                if( (int)(offset/256) > 0 ) for( i=0 ; i<(int)(offset/256) ; i++ ) { 
+                    if( read(in_fd,buf,256)<0 ) { client_error(out_fd, 500, "Internal server error", "", "Bad offset") ; close(out_fd) ; return ; }
+                }
+                if( (offset%256)>0 ) { read(in_fd,buf,offset%256) ; }
+            }
+            while( (n=read(in_fd,buf,256))>0 ) {
 #ifdef WIN32
-			n = send(out_fd,buf,n,0);
+                n = send(out_fd,buf,n,0);
 #else
-			write(out_fd,buf,n);
+                write(out_fd,buf,n);
 #endif
-			size += n ;
-			if(n!=256) break ;
-		}
+                size += n ;
+                if(n!=256) break ;
+            }
 #endif
-		if( debug_flag ) printf("[%d][%s] 	offset: %d size:%ld\n", getpid(), logt(), (int)offset, size);
+            if( debug_flag ) printf("[%d][%s] 	offset: %d size:%ld\n", getpid(), logt(), (int)offset, size);
 		
 #ifdef WIN32
-		closesocket(out_fd);
+            closesocket(out_fd);
 #else
-		close(out_fd);
+            close(out_fd);
 #endif
-		break;
-	}
+            break;
+        }
     } else {
-	    sprintf(buf + strlen(buf), "\r\n" ) ;
-	    writen(out_fd, buf, strlen(buf));
+        sprintf(buf + strlen(buf), "\r\n" ) ;
+        writen(out_fd, buf, strlen(buf));
 #ifdef WIN32
-		closesocket(out_fd);
+        closesocket(out_fd);
 #else
-	    close(out_fd);
+        close(out_fd);
 #endif
     }
 }
 
 void serve_static_put(int out_fd, http_request *req) { // curl -X PUT -H "Expect:" http://localhost:9999/1.txt --upload-file 1.txt --basic -u username:password
-	if( getenv("TINYWEB_AUTH")!=NULL ) {
-		if( (strlen(req->auth)==0) || strcmp(req->auth,getenv("TINYWEB_AUTH")) ) {
-			client_error(out_fd, 401, "Unauthorized", "WWW-Authenticate: Basic realm=\"Enter credentials\"", "Unauthorized") ;
-			close(out_fd) ;
-			return ;
-		}		
-	}
-	int r = write_file( out_fd, req, req->filename ) ;
-	switch( r ) {
-		case 200: client_error(out_fd, 200, "OK", NULL, "File created"); break;
-		case 400: client_error(out_fd, 400, "Bad request", NULL, "No data found");break;
-		case 500: 
-		default: client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
-	
-	}
+    if( getenv("TINYWEB_AUTH")!=NULL ) {
+        if( (strlen(req->auth)==0) || strcmp(req->auth,getenv("TINYWEB_AUTH")) ) {
+            client_error(out_fd, 401, "Unauthorized", "WWW-Authenticate: Basic realm=\"Enter credentials\"", "Unauthorized") ;
+            close(out_fd) ;
+            return ;
+        }
+    }
+    int r = write_file( out_fd, req, req->filename ) ;
+    switch( r ) {
+        case 200: client_error(out_fd, 200, "OK", NULL, "File created"); break;
+        case 400: client_error(out_fd, 400, "Bad request", NULL, "No data found");break;
+        case 500: 
+        default: client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to create file");
+    }
 #ifdef WIN32
-	closesocket(out_fd);
+    closesocket(out_fd);
 #else
-	close(out_fd);
+    close(out_fd);
 #endif
 }
 
 void serve_static_delete(int out_fd, http_request *req) { // curl -X DELETE http://localhost:9999/1.txt --basic -u username:password
-	if( getenv("TINYWEB_AUTH")!=NULL ) {
-		if( (strlen(req->auth)==0) || strcmp(req->auth,getenv("TINYWEB_AUTH")) ) {
-			client_error(out_fd, 401, "Unauthorized", "WWW-Authenticate: Basic realm=\"Enter credentials\"", "Unauthorized") ;
-			close(out_fd) ;
-			return ;
-		}		
-	} 
-	if( remove( req->filename )==0 ) {
-	    printf("File %s removed !\n",req->filename);
-	    client_error(out_fd, 204, "No content", NULL, NULL);
-	} else {
-	    client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to remove file");
-	}
+    if( getenv("TINYWEB_AUTH")!=NULL ) {
+        if( (strlen(req->auth)==0) || strcmp(req->auth,getenv("TINYWEB_AUTH")) ) {
+            client_error(out_fd, 401, "Unauthorized", "WWW-Authenticate: Basic realm=\"Enter credentials\"", "Unauthorized") ;
+            close(out_fd) ;
+            return ;
+        }
+    } 
+    if( remove( req->filename )==0 ) {
+        printf("File %s removed !\n",req->filename);
+        client_error(out_fd, 204, "No content", NULL, NULL);
+    } else {
+        client_error(out_fd, 500, "Internal server error", NULL, "Internal server error: unable to remove file");
+    }
 #ifdef WIN32
-	closesocket(out_fd);
+    closesocket(out_fd);
 #else
-	close(out_fd);
+    close(out_fd);
 #endif
 }
 
 void serve_static(int out_fd, int in_fd, http_request *req,
                   size_t total_size, time_t last_change_time) {
     if( !strcmp(req->method,"HEAD") || !strcmp(req->method,"GET") || !strcmp(req->method,"POST") ) {
-	serve_static_get(out_fd, in_fd, req, total_size, last_change_time) ;
+        serve_static_get(out_fd, in_fd, req, total_size, last_change_time) ;
     } else if( !strcmp(req->method,"DELETE") ) {
-	close( in_fd ) ;
-	serve_static_delete( out_fd, req ) ;
+        close( in_fd ) ;
+        serve_static_delete( out_fd, req ) ;
     } else if( !strcmp(req->method,"OPTIONS") ) {
-	client_error(out_fd, 200, "OK", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", NULL);
+        client_error(out_fd, 200, "OK", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", NULL);
     } else if( !strcmp(req->method,"PUT") ) {
-	serve_static_put(out_fd, req) ;
+        serve_static_put(out_fd, req) ;
     } else if( !strcmp(req->method,"TRACE") ) {
-	client_error(out_fd, 405, "Method not allowed", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", "Method not allowed");
+        client_error(out_fd, 405, "Method not allowed", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", "Method not allowed");
     } else {
-	client_error(out_fd, 405, "Method not allowed", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", "Method not allowed");
+        client_error(out_fd, 405, "Method not allowed", "Allow: DELETE, GET, HEAD, OPTIONS, POST, PUT, TRACE\r\n", "Method not allowed");
     }
 }
 
 int index_file_found(char *directory) {
-	char buf[1024];
-	int fd, ret=0 ;
-	if( directory[strlen(directory)-1]!='/' ) {
-		sprintf(buf, "%s/%s", directory, default_index_file);
-	} else {
-		sprintf(buf, "%s%s", directory, default_index_file);
-	}
-	fd = open(buf, O_RDONLY, 0);
-	if( fd>0 ){
-		struct stat sbuf;
-		fstat(fd, &sbuf);
-		if(S_ISREG(sbuf.st_mode)){
-			ret=1;
-		}
-		close(fd);
-	}
-	return ret ;
+    char buf[1024];
+    int fd, ret=0 ;
+    if( directory[strlen(directory)-1]!='/' ) {
+        sprintf(buf, "%s/%s", directory, default_index_file);
+    } else {
+        sprintf(buf, "%s%s", directory, default_index_file);
+    }
+    fd = open(buf, O_RDONLY, 0);
+    if( fd>0 ){
+        struct stat sbuf;
+        fstat(fd, &sbuf);
+        if(S_ISREG(sbuf.st_mode)){
+            ret=1;
+        }
+        close(fd);
+    }
+    return ret ;
 }
 
 int mopen(char *path, char *filename, char *vhost) {
@@ -1019,26 +1017,26 @@ int mopen(char *path, char *filename, char *vhost) {
     p = (char*) malloc( strlen(path)+strlen(filename)+strlen(vhost)+10 ) ;
 
     if( (vhost!=NULL) && (strlen(vhost)>0) ) {
-	sprintf(p,"%s/%s/%s",path,vhost,filename);
+        sprintf(p,"%s/%s/%s",path,vhost,filename);
 #ifdef WIN32
-	int i;
-	for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
-	ffd = open( p, O_RDONLY|O_BINARY, 0);
+        int i;
+        for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
+        ffd = open( p, O_RDONLY|O_BINARY, 0);
 #else
-	ffd = open( p, O_RDONLY, 0);
+        ffd = open( p, O_RDONLY, 0);
 #endif
-	if( debug_flag ) { printf("Searching for file %s\n",p); }
+        if( debug_flag ) { printf("Searching for file %s\n",p); }
     }
     if( ffd<=0 ) {
-	sprintf(p,"%s/%s",path,filename);
+        sprintf(p,"%s/%s",path,filename);
 #ifdef WIN32
-	int i;
-	for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
-	ffd = open(p, O_RDONLY|O_BINARY, 0);
+        int i;
+        for( i=0; i<strlen(p); i++) { if( p[i]=='/' ) { p[i]='\\' ; } }
+        ffd = open(p, O_RDONLY|O_BINARY, 0);
 #else
-	ffd = open(p, O_RDONLY, 0);
+        ffd = open(p, O_RDONLY, 0);
 #endif
-	if( debug_flag ) { printf("Searching for file %s\n",p); }
+        if( debug_flag ) { printf("Searching for file %s\n",p); }
     }
     free(p);
     return ffd;
@@ -1048,8 +1046,8 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
     printf("[%d][%s] accept request, fd is %d\n", getpid(), logt(), fd);
     http_request req;
     if( !parse_request(fd, &req) ) {
-	    printf("[%d][%s] Parse error !\n",getpid(),logt() );
-	    return ;
+        printf("[%d][%s] Parse error !\n",getpid(),logt() );
+        return ;
     }
 
     printf("[%d][%s] request filename: %s %s/%s\n", getpid(),logt(), req.method, req.host, req.filename);
@@ -1059,46 +1057,46 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
     int status = 200, ffd  ;
 
     if( !strcmp(req.method,"PUT") ) {
-	serve_static_put(fd, &req) ;
+        serve_static_put(fd, &req) ;
     } else if( (ffd=mopen(path,req.filename,req.vhost))>0 ) {
-	if( debug_flag ) { printf("Found file %s\n",req.filename); }
-	fstat(ffd, &sbuf);
-        if(S_ISREG(sbuf.st_mode)) {
-            if (req.end == 0) {
-                req.end = sbuf.st_size;
+        if( debug_flag ) { printf("Found file %s\n",req.filename); }
+            fstat(ffd, &sbuf);
+            if(S_ISREG(sbuf.st_mode)) {
+                if (req.end == 0) {
+                    req.end = sbuf.st_size;
+                }
+                if (req.offset > 0){
+                    status = 206;
+                }
+                if( !strcmp(req.filename+strlen(req.filename)-3,".sh") ) {
+                    status = serve_dynamic(fd, &req);
+                } else {
+                    serve_static(fd, ffd, &req, sbuf.st_size, sbuf.st_ctime);
+                }
+            } else if(S_ISDIR(sbuf.st_mode)) {
+                if( (req.filename[strlen(req.filename)-1]!='/')&&(req.filename[strlen(req.filename)-1]!='.') ) {
+                    status = 302;
+                    handle_directory_redirect(fd, req.filename, "/");
+                } else if( index_file_found(req.filename) ) {
+                    status = 302;
+                    handle_directory_redirect(fd, req.filename, default_index_file);
+                } else {
+                    status = 200;
+                    handle_directory_request(fd, NULL, ffd, req.filename);
+                }
+            } else {
+                status = 400;
+                char *msg = "Unknow Error";
+                client_error(fd, status, "Error", NULL, msg);
             }
-            if (req.offset > 0){
-                status = 206;
-            }
-            if( !strcmp(req.filename+strlen(req.filename)-3,".sh") ) {
-		status = serve_dynamic(fd, &req);
-	    } else {
-		serve_static(fd, ffd, &req, sbuf.st_size, sbuf.st_ctime);
-	    }
-        } else if(S_ISDIR(sbuf.st_mode)) {
-	    if( (req.filename[strlen(req.filename)-1]!='/')&&(req.filename[strlen(req.filename)-1]!='.') ) {
-		status = 302;
-		handle_directory_redirect(fd, req.filename, "/");
-	    } else if( index_file_found(req.filename) ) {
-		status = 302;
-		handle_directory_redirect(fd, req.filename, default_index_file);
-	    } else {
-		status = 200;
-		handle_directory_request(fd, NULL, ffd, req.filename);
-	    }
-        } else {
-            status = 400;
-            char *msg = "Unknow Error";
-            client_error(fd, status, "Error", NULL, msg);
-        }
-	close(ffd);
+        close(ffd);
     } else {
 #ifdef WIN32
-	DIR*dir = opendir(req.filename) ;
-	if( dir!=NULL ) { handle_directory_request(fd, dir, ffd, req.filename); return;}
+        DIR*dir = opendir(req.filename) ;
+        if( dir!=NULL ) { handle_directory_request(fd, dir, ffd, req.filename); return;}
 #endif
-	if( debug_flag ) { printf("%s is not found\n",req.filename); }
-	status = 404;
+        if( debug_flag ) { printf("%s is not found\n",req.filename); }
+        status = 404;
         char *msg = "File not found";
         client_error(fd, status, "Not found", NULL, msg);
     }
@@ -1106,99 +1104,98 @@ void process(char*path, int fd, struct sockaddr_in *clientaddr){
 }
 
 struct adresseIP { unsigned char i1; unsigned char i2; unsigned char i3; unsigned char i4; } ;
+
 int server_main(char *path, int port) {
-	int listenfd,
-	    connfd;
-	struct sockaddr_in clientaddr;
-	socklen_t clientlen = sizeof clientaddr;
+    int listenfd,
+        connfd;
+    struct sockaddr_in clientaddr;
+    socklen_t clientlen = sizeof clientaddr;    
+    if( debug_flag ) { printf( "Starting webser server on %d in %s\n", port, path ) ; }
+    if( debug_flag ) { printf( "Switching to %s directory\n", path ) ; }
+    if(chdir(path) != 0) {
+        perror(path);
+        exit(1);
+    }
+    printf("[%d][%s] parent pid is %d\n",getpid(),logt(),getpid());
+    listenfd = open_listenfd(port);
+    if (listenfd > 0) {
+        char buf[PATH_MAX];
+        path = getcwd(buf, sizeof(buf));
+        printf("[%d][%s] listen on port %d, scan directory %s, fd is %d\n",getpid(),logt(),port, path, listenfd);
+    } else {
+        perror("ERROR");
+        exit(listenfd);
+    }
 
-	if( debug_flag ) { printf( "Starting webser server on %d in %s\n", port, path ) ; }
-	if( debug_flag ) { printf( "Switching to %s directory\n", path ) ; }
-	if(chdir(path) != 0) {
-                perror(path);
-                exit(1);
-	}
-	printf("[%d][%s] parent pid is %d\n",getpid(),logt(),getpid());
-	listenfd = open_listenfd(port);
-	if (listenfd > 0) {
-		char buf[PATH_MAX];
-		path = getcwd(buf, sizeof(buf));
-		printf("[%d][%s] listen on port %d, scan directory %s, fd is %d\n",getpid(),logt(),port, path, listenfd);
-	} else {
-		perror("ERROR");
-		exit(listenfd);
-	}
-	
 #ifndef WIN32
-	// Ignore SIGPIPE signal, so if browser cancels the request, it
-	// won't kill the whole process.
-	signal(SIGPIPE, SIG_IGN);
-	int i;
-	if( nb_forks>0 )
-	for(i = 0; i < nb_forks; i++) {
-		int pid = fork();
-		if (pid == 0) {         //  child
-			int ppid ;
-			while(1) {
-				ppid = fork();
-				if( ppid==0 ) {	// petit-fils
-					while(1) {
-						connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
-						process(path, connfd, &clientaddr);
-						close(connfd);
-					}
-				} else if( ppid>0 ) { // On est dans le fils et on attend un crash du petit fils
-					int status ;
-					printf("[%d][%s] grandchild pid is %d\n",getpid(),logt(), ppid);
-					wait( &status ) ;
-					printf( "[%d][%s] grandchild %d terminaison with code %d\n",getpid(),logt(), ppid, status ) ;
-					sleep( 2 ) ;
-				} else {
-					perror("fork");
-				}
-
-			}
-		} else if (pid > 0) {   //  parent
-			printf("[%d][%s] child pid is %d\n",getpid(),logt(), pid);
-		} else {
-			perror("fork");
-		}
-	}
+    // Ignore SIGPIPE signal, so if browser cancels the request, it
+    // won't kill the whole process.
+    signal(SIGPIPE, SIG_IGN);
+    int i;
+    if( nb_forks>0 )
+    for(i = 0; i < nb_forks; i++) {
+        int pid = fork();
+        if (pid == 0) {         //  child
+            int ppid ;
+            while(1) {
+                ppid = fork();
+                if( ppid==0 ) {	// petit-fils
+                    while(1) {
+                        connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
+                        process(path, connfd, &clientaddr);
+                        close(connfd);
+                    }
+                } else if( ppid>0 ) { // On est dans le fils et on attend un crash du petit fils
+                    int status ;
+                    printf("[%d][%s] grandchild pid is %d\n",getpid(),logt(), ppid);
+                    wait( &status ) ;
+                    printf( "[%d][%s] grandchild %d terminaison with code %d\n",getpid(),logt(), ppid, status ) ;
+                    sleep( 2 ) ;
+                } else {
+                    perror("fork");
+                }
+            }
+        } else if (pid > 0) {   //  parent
+            printf("[%d][%s] child pid is %d\n",getpid(),logt(), pid);
+        } else {
+           perror("fork");
+        }
+    }
 #endif
-	while(1) {
-		connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
-		struct adresseIP * adIP = (struct adresseIP*) &( clientaddr.sin_addr.s_addr ) ;
-		printf("[%d][%s] accept connexion from %d.%d.%d.%d:%d\n",getpid(),logt(),adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
-		process(path, connfd, &clientaddr);
+    while(1) {
+        connfd = accept(listenfd, (SA *)&clientaddr, &clientlen);
+        struct adresseIP * adIP = (struct adresseIP*) &( clientaddr.sin_addr.s_addr ) ;
+        printf("[%d][%s] accept connexion from %d.%d.%d.%d:%d\n",getpid(),logt(),adIP->i1,adIP->i2,adIP->i3,adIP->i4,ntohs(clientaddr.sin_port));
+        process(path, connfd, &clientaddr);
 #ifdef WIN32
-		closesocket(connfd);
+        closesocket(connfd);
 #else		
-		close(connfd);
+        close(connfd);
 #endif
-	}
-	return 0 ;
+    }
+    return 0 ;
 }
 
 void usage( char *progname ) {
 #ifndef WIN32
-	printf("Usage: %s [-d] [-h] [-v] [[directory] port]\n",progname);
-	printf("\t-d: daemon mode\n");
+    printf("Usage: %s [-d] [-h] [-v] [[directory] port]\n",progname);
+    printf("\t-d: daemon mode\n");
 #else
-	printf("Usage: %s [-h] [-v] [[directory] port]\n",progname);
+    printf("Usage: %s [-h] [-v] [[directory] port]\n",progname);
 #endif
-	printf("\t-h: print this help message\n");
-	printf("\t-v: verbose mode\n");
-	printf("\n");
-	printf("Configuration variables:\n");
-	printf("- TINYWEB_DIR: home directory [.]\n");
-	printf("- TINYWEB_PORT: listening port [9999]\n");
+    printf("\t-h: print this help message\n");
+    printf("\t-v: verbose mode\n");
+    printf("\n");
+    printf("Configuration variables:\n");
+    printf("- TINYWEB_DIR: home directory [.]\n");
+    printf("- TINYWEB_PORT: listening port [9999]\n");
 #ifndef WIN32
-	printf("- TINYWEB_NBPROCESS: number of concurrent processes [10]\n");
+    printf("- TINYWEB_NBPROCESS: number of concurrent processes [10]\n");
 #endif
-	printf("- TINYWEB_CMD: external scripts command [%s]\n",dynamic_shell);
-	printf("- TINYWEB_CAT: external cat command [%s]\n", dynamic_cat);
-	printf("- TINYWEB_AUTH: Basic authent for PUT and DELETE\n");
-	printf("- TINYWEB_DEBUG: unable debug mode\n");
+    printf("- TINYWEB_CMD: external scripts command [%s]\n",dynamic_shell);
+    printf("- TINYWEB_CAT: external cat command [%s]\n", dynamic_cat);
+    printf("- TINYWEB_AUTH: Basic authent for PUT and DELETE\n");
+    printf("- TINYWEB_DEBUG: unable debug mode\n");
 }
 
 int main(int argc, char** argv) {
@@ -1212,33 +1209,33 @@ int main(int argc, char** argv) {
     if( getenv("TINYWEB_NBPROCESS")!=NULL ) { nb_forks=atoi(getenv("TINYWEB_NBPROCESS")); if(nb_forks<0) nb_forks=0;  }
     if( getenv("TINYWEB_CMD")!=NULL ) { dynamic_shell=(char*)malloc(strlen(getenv("TINYWEB_CMD"))+2);strcpy(dynamic_shell,getenv("TINYWEB_CMD"));strcat(dynamic_shell," "); }
     if( getenv("TINYWEB_CAT")!=NULL ) { dynamic_cat=(char*)malloc(strlen(getenv("TINYWEB_CAT"))+2);strcpy(dynamic_cat,getenv("TINYWEB_CAT"));strcat(dynamic_cat," "); }
-	    
+
     if( getenv("TMPDIR")!=NULL ) { strcpy(tmp_dir, getenv("TMPDIR")); }
     else if( getenv("TEMP")!=NULL ) { strcpy(tmp_dir, getenv("TEMP")); }
     else if( getenv("TMP")!=NULL ) { strcpy(tmp_dir, getenv("TMP")); }
     else if( getenv("TINYWEB_DEBUG")!=NULL ) { debug_flag = 1 ; printf( "Debug mode enabled\n" ) ; }
     
     while ((opt = getopt(argc, argv, "hdv")) != -1) {
-	switch (opt) {
-        case 'h': usage(argv[0]); exit(0); break;
+        switch (opt) {
+            case 'h': usage(argv[0]); exit(0); break;
 #ifndef WIN32
-	case 'd': // daemon
-		if( fork()!= 0 ) { exit(0); }
-		if( fork()!= 0 ) { exit(0); }
-		break;
+            case 'd': // daemon
+                if( fork()!= 0 ) { exit(0); }
+                if( fork()!= 0 ) { exit(0); }
+                break;
 #endif
-	case 'v': debug_flag = 1 ; break;
-	default: /* '?' */ usage(argv[0]); exit(0); break;
-	}
+            case 'v': debug_flag = 1 ; break;
+            default: /* '?' */ usage(argv[0]); exit(0); break;
+        }
     }
 
     if( argc==(optind+1) ) {
-	    port = atoi(argv[optind]) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; } 
+        port = atoi(argv[optind]) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; } 
     } else if( argc==(optind+2) ) {
-	path = argv[optind] ;
-	port = atoi(argv[optind+1]) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; }
+        path = argv[optind] ;
+        port = atoi(argv[optind+1]) ; if( (port<1)||(port>65535) ) { port = DEFAULT_PORT; }
     }
-    
+
 #ifdef WIN32
 WSADATA wsaData;
 if( WSAStartup(MAKEWORD(2,2), &wsaData) ) {
